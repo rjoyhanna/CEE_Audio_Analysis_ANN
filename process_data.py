@@ -135,15 +135,15 @@ def create_feature_sets_and_labels(clips, test_size=0.6):
 
 
 def get_data():
-    label_filename = 'single_double_labels.txt'
-    filename = 'single_double.wav'
+    label_filename = 'track2_labels.txt'
+    filename = 'track2.wav'
     audio_segment, sampling_rate = librosa.load(filename)
     labels = pd.read_csv(label_filename, delimiter="\t", names=["start", "end", "label"])
     return split_clip(audio_segment, sampling_rate, labels)
 
 
-print(get_data().at[20, 'fourier'].shape)
-print(type(get_data().at[20, 'fourier']))
+# print(get_data().at[20, 'fourier'].shape)
+# print(type(get_data().at[20, 'fourier']))
 # spectrogram_in_hz('single_double.wav')
 # stft_audio('single_double.wav')
 # display_segmented_audio('single_double.wav', 'single_double_labels.txt')

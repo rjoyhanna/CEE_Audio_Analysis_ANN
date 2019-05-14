@@ -16,7 +16,6 @@ from sklearn.utils import shuffle
 dataset = get_data()
 dataset = shuffle(dataset)
 
-
 fouriers = pd.DataFrame(dataset.iloc[:, 1].values.tolist())
 surr_fouriers = pd.DataFrame(dataset.iloc[:, 4].values.tolist())
 newData = np.concatenate((fouriers, surr_fouriers), axis=1)
@@ -49,10 +48,10 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_
 
 # # Feature Scaling
 # # we don't need this because data is already between 0 and 1, besides won't work since we pass a pointer to DF
-# from sklearn.preprocessing import StandardScaler
-# sc = StandardScaler()
-# X_train = sc.fit_transform(X_train)
-# X_test = sc.transform(X_test)
+from sklearn.preprocessing import StandardScaler
+sc = StandardScaler()
+X_train = sc.fit_transform(X_train)
+X_test = sc.transform(X_test)
 
 # Part 2 - Now let's make the ANN!
 
@@ -65,19 +64,26 @@ from keras.layers import Dense
 classifier = Sequential()
 
 # Adding the input layer and the first hidden layer
-classifier.add(Dense(activation="relu", input_dim=43050, units=6, kernel_initializer="uniform"))
+classifier.add(Dense(activation="relu", input_dim=43050, units=50, kernel_initializer="uniform"))
 
 # Adding the second hidden layer
-classifier.add(Dense(activation="relu", units=6, kernel_initializer="uniform"))
+classifier.add(Dense(activation="relu", units=50, kernel_initializer="uniform"))
+classifier.add(Dense(activation="relu", units=50, kernel_initializer="uniform"))
+classifier.add(Dense(activation="relu", units=50, kernel_initializer="uniform"))
+classifier.add(Dense(activation="relu", units=50, kernel_initializer="uniform"))
+classifier.add(Dense(activation="relu", units=50, kernel_initializer="uniform"))
 
 # Adding the output layer
 classifier.add(Dense(activation="sigmoid", units=1, kernel_initializer="uniform"))
 
 # Compiling the ANN
-classifier.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+# classifier.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+# classifier.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+# optimizer = optimizer_rmsprop(), loss = loss_binary_crossentropy, metrics = metric_binary_accuracy)
+classifier.compile(loss='binary_crossentropy', optimizer='adam', metrics=['acc'])
 
 # Fitting the ANN to the Training set
-classifier.fit(X_train, y_train, batch_size=10, epochs=10)
+history = classifier.fit(X_train, y_train, batch_size=len(X), epochs=100)
 
 # Part 3 - Making the predictions and evaluating the model
 
@@ -85,6 +91,9 @@ classifier.fit(X_train, y_train, batch_size=10, epochs=10)
 y_pred = classifier.predict(X_test)
 y_pred = np.argmax(y_pred, axis=1)
 # y_pred = (y_pred > 0.5)
+
+plt.plot(history.history['acc'])
+plt.show()
 
 # Making the Confusion Matrix
 from sklearn.metrics import confusion_matrix
