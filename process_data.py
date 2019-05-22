@@ -61,7 +61,7 @@ def split_clip_mean_sd(audio_segment, sr, labels):
             if i % 100 == 0:
                 print("adding row ", i, " of ", num_i, " to the DataFrame")
 
-            data = data.append({'clip': new_clip, 'label': seg_label, 'sd': sd, 'mean': mean_surr}, ignore_index=True)
+            data = data.append({'clip': np.abs(librosa.stft(new_clip)).flatten(), 'label': seg_label, 'sd': sd, 'mean': mean_surr}, ignore_index=True)
         start += 500
         i += 1
     # print(data[["label", "sd", "mean"]])
@@ -208,4 +208,4 @@ def pickle_data(data_type):
 
 
 # pass in mean_sd or fourier
-# pickle_data('fourier')
+# pickle_data('mean_sd')

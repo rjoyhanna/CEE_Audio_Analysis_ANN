@@ -54,7 +54,6 @@ def split_data(dataset, data_type):
         clips = pd.DataFrame(dataset.iloc[:, 0].values.tolist())
         sds = pd.DataFrame(dataset[['sd']].values.tolist())  # .iloc[:, 3]
         means = pd.DataFrame(dataset[['mean']].values.tolist())  # .iloc[:, 2]
-        print(clips)
         print("combining the mean/SD data...\n\n")
         newData = np.concatenate((clips, sds, means), axis=1)
         print("defining x and y values...\n\n")
@@ -66,11 +65,10 @@ def split_data(dataset, data_type):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=0)
     # # Feature Scaling
     # # we don't need this because data is already between 0 and 1
-    # from sklearn.preprocessing import StandardScaler
-    # sc = StandardScaler()
-    # X_train = sc.fit_transform(X_train)
-    # X_test = sc.transform(X_test)
-    print(X)
+    from sklearn.preprocessing import StandardScaler
+    sc = StandardScaler()
+    X_train = sc.fit_transform(X_train)
+    X_test = sc.transform(X_test)
     return X_train, X_test, y_train, y_test
 
 
@@ -80,7 +78,7 @@ def run_ann(data_age, data_type, num_units, num_hidden_layers):
     if data_type == 'fourier':
         num_inputs = 8200
     elif data_type == 'mean_sd':
-        num_inputs = 502
+        num_inputs = 1027
     else:
         num_inputs = 0
     # Part 2 - Now let's make the ANN!
@@ -97,9 +95,12 @@ def run_ann(data_age, data_type, num_units, num_hidden_layers):
     classifier.add(Dense(activation="relu", input_dim=num_inputs, units=num_units, kernel_initializer="uniform"))
 
     # Adding the second hidden layer
-    classifier.add(Dense(activation="relu", units=num_units, kernel_initializer="uniform"))
-    classifier.add(Dense(activation="relu", units=num_units, kernel_initializer="uniform"))
-    classifier.add(Dense(activation="relu", units=num_units, kernel_initializer="uniform"))
+    i = 0
+    while i < num_hidden_layers:
+        classifier.add(Dense(activation="relu", units=num_units, kernel_initializer="uniform"))
+        i += 1
+    # classifier.add(Dense(activation="relu", units=num_units, kernel_initializer="uniform"))
+    # classifier.add(Dense(activation="relu", units=num_units, kernel_initializer="uniform"))
 
     # Adding the output layer
     classifier.add(Dense(activation="sigmoid", units=1, kernel_initializer="uniform"))
@@ -111,24 +112,42 @@ def run_ann(data_age, data_type, num_units, num_hidden_layers):
     classifier.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 
     # Fitting the ANN to the Training set
-    history = classifier.fit(X_train, y_train, batch_size=128, epochs=20)
+    hist = classifier.fit(X_train, y_train, batch_size=128, epochs=20)
 
     # Part 3 - Making the predictions and evaluating the model
 
     # Predicting the Test set results
     y_pred = classifier.predict(X_test)
-    y_pred = np.argmax(y_pred, axis=1)
-    # y_pred = (y_pred > 0.5)
+    y_pred = (y_pred > 0.5)
 
-    plt.plot(history.history['acc'])
-    plt.show()
+    fig1 = plt.figure(1)
+    plt.plot(hist.history["loss"])
+    plt.title("model loss")
+    plt.ylabel("loss")
+    plt.xlabel("epoch")
+    plt.legend(["train", "val"], loc="upper left")
+    fig1.show()
 
     # Making the Confusion Matrix
     from sklearn.metrics import confusion_matrix
-    cm = confusion_matrix(y_test, y_pred)
+    labels = [0, 1, 2, 3]
+    cm = confusion_matrix(y_test, y_pred, labels)
+    # print(cm)
+    fig2 = plt.figure(2)
+    ax = fig2.add_subplot(111)
+    cax = ax.matshow(cm)
+    plt.title('Confusion matrix of the classifier')
+    fig2.colorbar(cax)
+    ax.set_xticklabels([''] + labels)
+    ax.set_yticklabels([''] + labels)
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.show()
+
+    input()
 
 
-run_ann('pickle', 'fourier', 20, 3)
+run_ann('pickle', 'mean_sd', 20, 2)
 
 
 # # Encoding categorical data
