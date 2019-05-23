@@ -41,7 +41,7 @@ def configure_data(data_age, data_type):
     return dataset
 
 
-def run_ann(data_age, data_type, num_units, num_hidden_layers, num_epochs, batch_size):
+def run_ann(data_age, data_type, num_units, num_hidden_layers, num_epochs, batch_size, test_train_split):
     # Splitting the dataset into the Training set and Test set
     dataset = configure_data(data_age, data_type)
 
@@ -75,11 +75,31 @@ def run_ann(data_age, data_type, num_units, num_hidden_layers, num_epochs, batch
     print('classes:\n', encoder.classes_)
     encoded_y = encoder.transform(y)
     print(encoded_y)
+    i = 0
+    num_labelled_0 = 0
+    num_labelled_1 = 0
+    num_labelled_2 = 0
+    num_labelled_3 = 0
+    while i < len(encoded_y):
+        if encoded_y[i] == 0:
+            num_labelled_0 += 1
+        elif encoded_y[i] == 1:
+            num_labelled_1 += 1
+        elif encoded_y[i] == 2:
+            num_labelled_2 += 1
+        elif encoded_y[i] == 3:
+            num_labelled_3 += 1
+        i += 1
+    print('num labelled 0: ', num_labelled_0, '\n')
+    print('num labelled 1: ', num_labelled_1, '\n')
+    print('num labelled 2: ', num_labelled_2, '\n')
+    print('num labelled 3: ', num_labelled_3, '\n')
+
     # convert integers to dummy variables (i.e. one hot encoded)
     y = np_utils.to_categorical(encoded_y)
     print(y)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=seed)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_train_split, random_state=seed)
 
     if data_type == 'fourier':
         num_inputs = 8200
@@ -94,6 +114,10 @@ def run_ann(data_age, data_type, num_units, num_hidden_layers, num_epochs, batch
     sc = StandardScaler()
     X_train = sc.fit_transform(X_train)
     X_test = sc.transform(X_test)
+    data_to_pickle = sc
+    pickle_filename = 'scalar.pickle'
+    with open(pickle_filename, 'wb') as f:
+        pickle.dump(data_to_pickle, f)
 
     # Initialising the ANN
     classifier = Sequential()
@@ -112,7 +136,11 @@ def run_ann(data_age, data_type, num_units, num_hidden_layers, num_epochs, batch
     classifier.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
     # Fitting the ANN to the Training set
-    hist = classifier.fit(X_train, y_train, batch_size=batch_size, epochs=num_epochs)
+    class_weight = {0: 1./num_labelled_0,
+                    1: 1./num_labelled_1,
+                    2: 1./num_labelled_2,
+                    3: 1./num_labelled_3}
+    hist = classifier.fit(X_train, y_train, batch_size=batch_size, epochs=num_epochs, class_weight=class_weight)
 
     # Part 3 - Making the predictions and evaluating the model
 
@@ -146,11 +174,12 @@ def run_ann(data_age, data_type, num_units, num_hidden_layers, num_epochs, batch
     plt.ylabel('True')
     plt.show()
 
-    input()
+    return classifier
 
 
-# def run_ann(data_age, data_type, num_units, num_hidden_layers, num_epochs, batch_size):
-run_ann('pickle', 'fourier', 20, 2, 100, 128)
+# def run_ann(data_age, data_type, num_units, num_hidden_layers, num_epochs, batch_size, test_train_split):
+
+run_ann('pickle', 'mean_sd', 20, 2, 20, 128, .4)#.save('mean_sd_ann.h5')
 
 # estimator = KerasClassifier(build_fn=baseline_model, nb_epoch=200, batch_size=5, verbose=0)
 # X_train, X_test, Y_train, Y_test = train_test_split(X, dummy_y, test_size=0.33, random_state=seed)
