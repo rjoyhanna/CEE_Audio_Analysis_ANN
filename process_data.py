@@ -21,18 +21,17 @@ def get_label(start, end, labels):
     start = start / 1000
     last_label = labels.shape[0]
     for i in range(0, last_label):
-        if labels.loc[i, 'end'] >= end:
-            if labels.loc[i, 'start'] <= start:
+        if labels.loc[i, 'end'] >= end:  # if the clip ends before the current label does
+            if labels.loc[i, 'start'] <= start:  # if the clip starts after the current label does
                 return labels.loc[i, 'label']
-            else:
-                return -1  # this is a transition label (the clip contains multiple labels)
+            else:  # fix this to account for incomplete labels
+                return labels.loc[i, 'label']  # this is a transition label (the clip contains multiple labels)
 
 
 def split_clip_mean_sd(audio_segment, sr, labels):
     clip_len = librosa.get_duration(audio_segment,sr)*1000  # length in milliseconds
-    full_rms = librosa.feature.rmse(y=audio_segment, frame_length=1, hop_length=1).flatten()
-    full_sd = np.std(full_rms)
-    full_mean = np.mean(full_rms)
+    # full_rms = librosa.feature.rmse(y=audio_segment, frame_length=1, hop_length=1).flatten()
+    # full_mean = np.mean(full_rms)
     start = 0
     i = 0
     num_i = int(clip_len / 500)
@@ -41,14 +40,14 @@ def split_clip_mean_sd(audio_segment, sr, labels):
         end = start + 500
         if end <= clip_len:
             new_clip = audio_segment[start:end]  # creates a .5 second clip
-            if start - 10000 < 0:
+            if start - 2500 < 0:
                 surr_start = start
             else:
-                surr_start = start - 10000
-            if end + 10000 > clip_len:
+                surr_start = start - 2500
+            if end + 2500 > clip_len:
                 surr_end = clip_len  # we may want to change this so that it wil ALWAYS be 10 seconds
             else:
-                surr_end = end + 10000
+                surr_end = end + 2500
             surr_clip = audio_segment[int(surr_start):int(surr_end)]  # creates 10 second clip of the surrounding audio
 
             seg_label = get_label(start, end, labels)  # find label for clip
@@ -65,8 +64,10 @@ def split_clip_mean_sd(audio_segment, sr, labels):
         start += 500
         i += 1
     # print(data[["label", "sd", "mean"]])
-    print("overall mean is {:05.4f} and dataframe mean is {:05.4f}" .format(full_mean, np.mean(data[["mean"]].values.flatten())))
-    print("overall SD   is {:05.4f} and dataframe SD   is {:05.4f}\n" .format(full_sd, np.mean(data[["sd"]].values.flatten())))
+    from scipy.stats import zscore
+    print(data[['label','sd','mean']])
+    data[['sd','mean']] = data[["sd", 'mean']].apply(zscore)  # data standardization
+    print(data[['label','sd','mean']])
     return data
 
 
@@ -125,9 +126,14 @@ def display_segmented_audio(filename, label_filename):
             label_color = 'red'
         else:
             label_color = 'white'
-        plt.axvspan(labels.loc[i, 'start'], labels.loc[i, 'end'], alpha=0.5, color=label_color, lw=0)
+        plt.axvspan(labels.loc[i, 'start'], labels.loc[i, 'end'], alpha=1, color=label_color, lw=0)
+    import matplotlib.patches as mpatches
+    blue_patch = mpatches.Patch(color='blue', label='Single Voice')
+    red_patch = mpatches.Patch(color='red', label='Multiple Voice')
+    white_patch = mpatches.Patch(color='white', label='Other')
 
-    plt.plot(Time, data)
+    plt.legend(handles=[blue_patch, red_patch, white_patch])
+    plt.plot(Time, data, color="black")
     plt.show()
 
 
@@ -175,7 +181,8 @@ def get_all_data(file_names, data_type):
             total_data = total_data.append(curr_set, ignore_index=True)
         print("dropping NaN and -1 values...\n")
         for i, row in total_data.iterrows():
-            if row.label == -1:
+            if row['label'] == -1:
+                print('found a -1\n')
                 total_data.drop(total_data.index[i])
         total_data.dropna()
     elif data_type == 'fourier':
@@ -194,18 +201,20 @@ def get_ann_data(data_type):
     valid_type = {'mean_sd', 'fourier'}
     if data_type not in valid_type:
         raise ValueError("get_ann_data: data_type must be one of {}.".format(valid_type))
-    return get_all_data(["track1", "track2"], data_type)
+    return get_all_data(["track2", "track3", 'track4', 'track5'], data_type)
 
 
-def pickle_data(data_type):
+def pickle_data(data_type, trial_num):
     valid_type = {'mean_sd', 'fourier'}
     if data_type not in valid_type:
         raise ValueError("pickle_data: data_type must be one of {}.".format(valid_type))
     data_to_pickle = get_ann_data(data_type)
-    pickle_filename = data_type + '.pickle'
+    pickle_filename = data_type + str(trial_num) + '.pickle'
     with open(pickle_filename, 'wb') as f:
         pickle.dump(data_to_pickle, f)
 
 
 # pass in mean_sd or fourier
-# pickle_data('mean_sd')
+# pickle_data('mean_sd', 6)
+# display_segmented_audio('track2.wav', 'track2_labels.txt')
+

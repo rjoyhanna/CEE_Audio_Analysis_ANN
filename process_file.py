@@ -8,6 +8,7 @@ import pickle
 from sklearn import preprocessing
 from keras.models import load_model
 from sklearn.preprocessing import StandardScaler
+import os
 
 
 def get_audio_data(file_name, data_type):
@@ -35,14 +36,14 @@ def split_clip_mean_sd(audio_segment, sr):
         end = start + 500
         if end <= clip_len:
             new_clip = audio_segment[start:end]  # creates a .5 second clip
-            if start - 10000 < 0:
+            if start - 5000 < 0:
                 surr_start = start
             else:
-                surr_start = start - 10000
-            if end + 10000 > clip_len:
+                surr_start = start - 5000
+            if end + 5000 > clip_len:
                 surr_end = clip_len  # we may want to change this so that it wil ALWAYS be 10 seconds
             else:
-                surr_end = end + 10000
+                surr_end = end + 5000
             surr_clip = audio_segment[int(surr_start):int(surr_end)]  # creates 10 second clip of the surrounding audio
 
             rms = librosa.feature.rmse(y=new_clip, frame_length=1, hop_length=1).flatten()
@@ -60,7 +61,7 @@ def split_clip_mean_sd(audio_segment, sr):
 
 
 # for testing purposes, displays the wave file visually
-def display_segmented_audio(filename, labels):
+def display_segmented_audio(filename, labels, ann_name, trial_num):
     filename = filename + '.wav'
     data, sampling_rate = librosa.load(filename)
     plt.figure(figsize=(12, 4))
@@ -93,25 +94,29 @@ def display_segmented_audio(filename, labels):
     plt.legend(handles=[blue_patch, red_patch, white_patch])
     print(data)
     plt.plot(Time, data, color="black")
-    plt.show()
+    ann_name = ann_name[:-7]
+    ann_name = os.path.basename(ann_name)
+    plt.savefig('trials' + str(trial_num) + '/output/' + ann_name + 'out.png')
+    # plt.show()
 
 
-file_name = 'track2'
-classifier = load_model('mean_sd_ann.h5')
-audio_data = get_audio_data(file_name, 'mean_sd')
-print("Extracting mean/SD data from the DataFrame...\n\n")
-# convert mean/SD results to lists so they can be passed as x values to the neural network
-clips = pd.DataFrame(audio_data.iloc[:, 0].values.tolist())
-sds = pd.DataFrame(audio_data[['sd']].values.tolist())  # .iloc[:, 3]
-means = pd.DataFrame(audio_data[['mean']].values.tolist())  # .iloc[:, 2]
-print("combining the mean/SD data...\n\n")
-newData = np.concatenate((clips, sds, means), axis=1)
-print("defining x and y values...\n\n")
-pickle_in = open('scalar.pickle','rb')
-sc = pickle.load(pickle_in)
-newData = sc.fit_transform(newData)
-X = newData
-y_pred = classifier.predict(X)
-y_pred = np.argmax(y_pred, axis=1, out=None)
-display_segmented_audio(file_name, y_pred)
+def process_new_file(file_name, ann_name, trial_num):
+    classifier = load_model(ann_name)
+    audio_data = get_audio_data(file_name, 'mean_sd')
+    print("Extracting mean/SD data from the DataFrame...\n\n")
+    # convert mean/SD results to lists so they can be passed as x values to the neural network
+    clips = pd.DataFrame(audio_data.iloc[:, 0].values.tolist())
+    sds = pd.DataFrame(audio_data[['sd']].values.tolist())  # .iloc[:, 3]
+    means = pd.DataFrame(audio_data[['mean']].values.tolist())  # .iloc[:, 2]
+    print("combining the mean/SD data...\n\n")
+    newData = np.concatenate((clips, sds, means), axis=1)
+    print("defining x and y values...\n\n")
+    pickle_in = open('scalar.pickle','rb')
+    sc = pickle.load(pickle_in)
+    newData_fouriers = sc.fit_transform(newData[['clip']].values)
+    newData[['clip']] = newData_fouriers
+    X = newData
+    y_pred = classifier.predict(X)
+    y_pred = np.argmax(y_pred, axis=1, out=None)
+    display_segmented_audio(file_name, y_pred, ann_name, trial_num)
 

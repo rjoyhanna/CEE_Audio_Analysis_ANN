@@ -1,0 +1,22 @@
+Where Next:
+
+Standardizing the data had no effect
+
+* try not scaling?
+* only scale the fourier data?
+* fix edge cases for labels
+* clean up code
+* make surrounding window smaller?
+* provide with other data?
+*   - mean of clip
+*   - sd of surrounding window
+
+* mean_sd6.pickle is all -1 labels
+* mean_sd5.pickle is standardized window size of 5
+* mean_sd4.pickle is standardized? window size of 10
+
+
+TRY giving the mean and sd of the entire clip as well (same vlaue for each clip of the same audio file)
+
+
+test similarity between 2 people's annotations
