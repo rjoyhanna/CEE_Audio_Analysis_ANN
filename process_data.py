@@ -25,7 +25,13 @@ def get_label(start, end, labels):
             if labels.loc[i, 'start'] <= start:  # if the clip starts after the current label does
                 return labels.loc[i, 'label']
             else:  # fix this to account for incomplete labels
-                return labels.loc[i, 'label']  # this is a transition label (the clip contains multiple labels)
+                len_left = labels.loc[i-1, 'end'] - labels.loc[i-1, 'start']
+                len_right = labels.loc[i, 'end'] - labels.loc[i, 'start']
+                if len_left >= len_right:
+                    return labels.loc[i-1, 'label']  # this is a transition label (the clip contains multiple labels)
+                else:
+                    return labels.loc[i, 'label']  # this is a transition label (the clip contains multiple labels)
+    return -1  # should remove unwanted rows
 
 
 def split_clip_mean_sd(audio_segment, sr, labels):
@@ -180,19 +186,14 @@ def get_all_data(file_names, data_type):
             curr_set[["mean"]] = means_scaled
             total_data = total_data.append(curr_set, ignore_index=True)
         print("dropping NaN and -1 values...\n")
-        for i, row in total_data.iterrows():
-            if row['label'] == -1:
-                print('found a -1\n')
-                total_data.drop(total_data.index[i])
+        total_data = total_data[total_data.label != -1]
         total_data.dropna()
     elif data_type == 'fourier':
         for file in file_names:
             curr_set = get_data(file, data_type)  # returns a dataframe
             total_data = total_data.append(curr_set, ignore_index=True)
         print("dropping NaN and -1 values...\n")
-        for i, row in total_data.iterrows():
-            if row.label == -1:
-                total_data.drop(total_data.index[i])
+        total_data = total_data[total_data.label != -1]
         total_data.dropna()
     return total_data
 
@@ -201,7 +202,8 @@ def get_ann_data(data_type):
     valid_type = {'mean_sd', 'fourier'}
     if data_type not in valid_type:
         raise ValueError("get_ann_data: data_type must be one of {}.".format(valid_type))
-    return get_all_data(["track2", "track3", 'track4', 'track5'], data_type)
+    return get_all_data(["track2", "track3", 'track4', 'track5', 'track6', 'track7', 'track7b', 'track8', 'track9'], data_type)
+    # return get_all_data(['track7b'], data_type)
 
 
 def pickle_data(data_type, trial_num):

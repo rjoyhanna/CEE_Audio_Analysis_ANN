@@ -4,7 +4,7 @@ from process_data import pickle_data
 import os
 
 
-trial_num = 6
+trial_num = 7
 # folders = ['anns', 'confusion', 'loss', 'output']
 # print('creating folders\n')
 # for folder in folders:
@@ -15,15 +15,22 @@ trial_num = 6
 # if you are testing the ann, run this
 num_units = 6
 num_hidden_layers = 1
-num_epochs = 20
-batch_size = 200
+num_epochs = 30
+batch_size = 128
 test_train_split = .4
-while num_epochs <= 100:
+while num_units <= 100:
+    # while num_hidden_layers <= 5:
+    #     while num_epochs <= 50:
     while batch_size <= 400:
         run_ann('pickle','mean_sd', num_units, num_hidden_layers, num_epochs, batch_size, test_train_split, trial_num)
-        batch_size += 50
-    num_epochs += 20
-    batch_size = 200
+        batch_size += 100
+            # num_epochs += 20
+    batch_size = 128
+        # num_hidden_layers += 2
+        # num_epochs = 10
+    num_units += 20
+    # num_hidden_layers = 1
+# run_ann('pickle','mean_sd', num_units, num_hidden_layers, num_epochs, batch_size, test_train_split, trial_num)
 
 # if you are using an ANN to process a new file, use this
 # file_name = 'track2'
@@ -40,4 +47,4 @@ while num_epochs <= 100:
 #     process_new_file(file_name, sub_path + f, trial_num)
 
 # if you have new data, run this
-# pickle_data('mean_sd',6)
+# pickle_data('mean_sd',62)
