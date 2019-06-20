@@ -3,14 +3,11 @@ import matplotlib.pyplot as plt
 import pickle
 from keras.models import Sequential
 from keras.layers import Dense
-from data_obj import Data
+from file_helper import open_pickled_file
 import datetime
 
 
 class ANN:
-    # class attribute
-    object = 'artificial neural network'
-
     # initializer
     # data is a filename for now
     # ANN will be compiled with data ready to use
@@ -21,18 +18,27 @@ class ANN:
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.test_train_split = test_train_split
+        # print('split is {} inside _init_()'.format(self.test_train_split))
         self.trial_num = trial_num
-        self.data = Data(data, self.test_train_split, scaled=False)  # data holds the data age, type and input dimension
+        self.filename = data
+        raw_data = open_pickled_file(data)
+        input_dim, encoder, X_train, X_test, y_train, y_test = raw_data.prep_for_ann(split=self.test_train_split)
+        self.input_dim = input_dim
+        self.encoder = encoder
+        self.X_train = X_train
+        self.X_test = X_test
+        self.y_train = y_train
+        self.y_test = y_test
         self.classifier = self.create()
         self.hist = self.train()
-        self.y_pred = self.classifier.predict(self.data.X_test)
+        self.y_pred = self.classifier.predict(self.X_test)
 
     def create(self):
         # Initialising the ANN
         classifier = Sequential()
         # Adding the input layer and the first hidden layer
         # classifier.add(Dense(activation="relu", input_dim=num_inputs, units=num_units, kernel_initializer="uniform"))
-        classifier.add(Dense(activation="relu", input_dim=self.data.input_dim, units=self.num_units))
+        classifier.add(Dense(activation="relu", input_dim=self.input_dim, units=self.num_units))
         # Adding the other hidden layers
         i = 0
         while i < self.num_hidden_layers:
@@ -52,8 +58,8 @@ class ANN:
         num_labelled_1 = 0
         num_labelled_2 = 0
         num_labelled_3 = 0
-        while i < len(self.data.y_train):
-            curr_label = np.argmax(self.data.y_train[i])
+        while i < len(self.y_train):
+            curr_label = np.argmax(self.y_train[i])
             if curr_label == 0:
                 num_labelled_0 += 1
             elif curr_label == 1:
@@ -64,8 +70,8 @@ class ANN:
                 num_labelled_3 += 1
             i += 1
         i = 0
-        while i < len(self.data.y_test):
-            curr_label = np.argmax(self.data.y_test[i])
+        while i < len(self.y_test):
+            curr_label = np.argmax(self.y_test[i])
             if curr_label == 0:
                 num_labelled_0 += 1
             elif curr_label == 1:
@@ -81,13 +87,13 @@ class ANN:
                         2: 1. / num_labelled_2,
                         3: 1. / num_labelled_3}
 
-        hist = self.classifier.fit(self.data.X_train, self.data.y_train, batch_size=self.batch_size,
+        hist = self.classifier.fit(self.X_train, self.y_train, batch_size=self.batch_size,
                                    epochs=self.num_epochs, class_weight=class_weight)
         return hist
 
     def create_graphs(self, save=True):
         y_pred = np.argmax(self.y_pred, axis=1, out=None)
-        y_test = np.argmax(self.data.y_test, axis=1, out=None)
+        y_test = np.argmax(self.y_test, axis=1, out=None)
 
         import datetime
         now = datetime.datetime.now()
@@ -99,8 +105,8 @@ class ANN:
         plt.xlabel("epoch")
         plot_acc = "{:.2f}%".format((self.hist.history['acc'][len(self.hist.history['acc']) - 1]) * 100)
         text = '{}\ndata: {}, nodes: {}, layers: {}\nepochs: {}, batch size: {}, split: {}, data: {}\naccuracy: {}'\
-            .format(date, self.data.filename, self.num_units, self.num_hidden_layers, self.num_epochs, self.batch_size,
-                    self.test_train_split, len(self.data.y_test) + len(self.data.y_train), plot_acc)
+            .format(date, self.filename, self.num_units, self.num_hidden_layers, self.num_epochs, self.batch_size,
+                    self.test_train_split, len(self.y_test) + len(self.y_train), plot_acc)
         text_y = (max(self.hist.history["loss"]) + min(self.hist.history["loss"])) / 2
         text_x = self.num_epochs / 2
         plt.text(text_x, text_y, text, horizontalalignment='center')
@@ -115,11 +121,11 @@ class ANN:
 
         # Making the Confusion Matrix
         from sklearn.metrics import confusion_matrix
-        labels = self.data.encoder.classes_.astype(int)
+        labels = self.encoder.classes_.astype(int)
         print(labels)
         # labels = [0, 1, 2, 3]
         # labels = encoder.transform(sorted(encoder.classes_))
-        y_test = self.data.encoder.inverse_transform(y_test).astype(int)
+        y_test = self.encoder.inverse_transform(y_test).astype(int)
         # y_pred = self.data.encoder.inverse_transform(y_pred).astype(int)
         print(y_test)
         print(y_pred)
@@ -171,4 +177,3 @@ class ANN:
         filename = 'trials{}/anns/{}_{}ann.pickle'.format(self.trial_num, plot_acc, now.strftime("%Y-%m-%d_%H-%M-%S"))
         with open(filename, 'wb') as f:
             pickle.dump(self, f)
-
