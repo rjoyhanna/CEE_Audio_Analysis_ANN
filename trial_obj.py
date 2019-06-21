@@ -2,12 +2,12 @@ from new_ann_obj import ANN
 from file_helper import get_valid_data_files
 
 
-DATA = ['data001.pickle', 'data002.pickle']
-UNITS = [3, 6, 9, 20]
-LAYERS = [1, 2, 5]
-EPOCHS = [20, 100]
-BATCH_SIZE = [50, 100, 200, 500]
-SPLIT = [.3, .4]
+DATA = ['data001.pickle', 'data002.pickle', 'data003.pickle']
+UNITS = [3, 6]
+LAYERS = [1, 3]
+EPOCHS = [20]
+BATCH_SIZE = [50, 300]
+SPLIT = [.4]
 
 
 class Trial:
@@ -32,13 +32,18 @@ class Trial:
                                 curr_ann = ANN(data, num_units, num_hidden_layers, num_epochs, batch_size,
                                                test_train_split, self.trial_num)
                                 curr_acc = (curr_ann.hist.history['acc'][len(curr_ann.hist.history['acc']) - 1]) * 100
-                                if curr_acc > best_acc:
-                                    best_acc = curr_acc
-                                    best_ann = curr_ann
                                 if save_anns:
                                     curr_ann.save_obj()
                                 if save_graphs:
-                                    curr_ann.create_graphs()
+                                    num_labelled_0, num_labelled_1, num_labelled_2, \
+                                    num_labelled_3 = curr_ann.create_graphs()
+                                    if curr_acc > best_acc:
+                                        if num_labelled_0 != 0 and num_labelled_1 != 0 and num_labelled_2 != 0 or num_labelled_3 != 0:
+                                            best_acc = curr_acc
+                                            best_ann = curr_ann
+                                else:
+                                    best_acc = curr_acc
+                                    best_ann = curr_ann
 
         self.best_ann = best_ann
         self.best_acc = best_acc

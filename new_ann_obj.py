@@ -170,6 +170,7 @@ class ANN:
         print(num_labelled_1)
         print(num_labelled_2)
         print(num_labelled_3)
+        return num_labelled_0, num_labelled_1, num_labelled_2, num_labelled_3
 
     def save_obj(self):
         now = datetime.datetime.now()

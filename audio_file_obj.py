@@ -276,7 +276,7 @@ class AudioData:
                 # deal with
             elif data_type == 'fourier_surr':
                 # curr_data = pd.DataFrame(self.data[[data_type]].values.tolist())
-                fourier = self.data.fourier.apply(pd.Series)
+                fourier = self.data.fourier_surr.apply(pd.Series)
 
                 flattened_data.reset_index(drop=True, inplace=True)
                 fourier.reset_index(drop=True, inplace=True)
