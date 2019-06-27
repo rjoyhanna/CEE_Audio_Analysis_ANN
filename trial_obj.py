@@ -1,12 +1,19 @@
 from new_ann_obj import ANN
-from file_helper import get_valid_data_files
+from file_helper import create_trial_folder
 
 
-DATA = ['data001.pickle', 'data002.pickle', 'data003.pickle']
-UNITS = [3, 6]
-LAYERS = [1, 3]
-EPOCHS = [20]
-BATCH_SIZE = [50, 300]
+# DATA = ['data001.pickle', 'data002.pickle', 'data003.pickle']
+# UNITS = [3, 6]
+# LAYERS = [1, 3]
+# EPOCHS = [20]
+# BATCH_SIZE = [50, 300]
+# SPLIT = [.4]
+
+DATA = ['data002.pickle', 'data003.pickle', 'data006.pickle', 'data007.pickle']
+UNITS = [6]
+LAYERS = [1, 2]
+EPOCHS = [30]
+BATCH_SIZE = [300]
 SPLIT = [.4]
 
 
@@ -17,6 +24,8 @@ class Trial:
         self.trial_num = trial_num
         self.total_anns = len(DATA) * len(UNITS) * len(LAYERS) * len(EPOCHS) * len(BATCH_SIZE) * len(SPLIT)
         i = 0
+
+        create_trial_folder(trial_num)
 
         for data in DATA:
             for num_units in UNITS:
@@ -47,3 +56,7 @@ class Trial:
 
         self.best_ann = best_ann
         self.best_acc = best_acc
+
+
+trial11 = Trial(11)
+print(trial11.best_acc)

@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pickle
 from keras.models import Sequential
-from keras.layers import Dense
+from keras.layers import Dense, Dropout
 from file_helper import open_pickled_file
 import datetime
 
@@ -41,11 +41,14 @@ class ANN:
         classifier.add(Dense(activation="relu", input_dim=self.input_dim, units=self.num_units))
         # Adding the other hidden layers
         i = 0
-        while i < self.num_hidden_layers:
+        while i < self.num_hidden_layers - 1:
             classifier.add(Dense(activation="relu", units=self.num_units, kernel_initializer="uniform"))
+            classifier.add(Dropout(0.2))
             i += 1
+
+        classifier.add(Dense(activation="relu", units=self.num_units, kernel_initializer="uniform"))
+
         # Adding the output layer
-        # classifier.add(Dense(activation="sigmoid", units=1, kernel_initializer="uniform"))
         classifier.add(Dense(activation="softmax", units=4, kernel_initializer="uniform"))
         # Compiling the ANN
         classifier.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])

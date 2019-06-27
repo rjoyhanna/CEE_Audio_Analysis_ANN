@@ -7,16 +7,51 @@ Standardizing the data had no effect
 * fix edge cases for labels
 * clean up code
 * make surrounding window smaller?
-* provide with other data?
-*   - mean of clip
-*   - sd of surrounding window
-
-* mean_sd6.pickle is all -1 labels
-* mean_sd5.pickle is standardized window size of 5
-* mean_sd4.pickle is standardized? window size of 10
-
-
-TRY giving the mean and sd of the entire clip as well (same vlaue for each clip of the same audio file)
-
 
 test similarity between 2 people's annotations
+
+Priorities 6/25/19
+* graphviz still not working
+1. clean up code and make it more object oriented
+	* fix axis labels on loss graphs
+	* clean up random forest classifier code
+	* fix ANN dropout
+2. convert data to wav and add to Box folder that can be shared with students
+3. try a convolutional neural network
+4. get more data
+
+Prepare 6/18/19
+1. clean up computer
+2. make weekly schedule
+3. update McAfee Account
+
+6/18/19 8-4
+6/19/19 8-12, 12:30-4:30
+6/20/19 8:45-12:25, 12:40-5?
+6/21/19 8-12:20, 12:40-4:20?
+6/24/19 9-12:10, 12:40-1:30
+6/25/19 10-5
+6/26/19 9-5
+
+meeting: lastpass, owasp, hard drive encryption, haveibeenponed
+
+Random Forest Classifier best stats with data004.pickle:
+Best score for data1: 0.6326521405693147
+Best n_estimators: 100 (vs 1000)
+Best bootstrap: True
+Best max_features: 2
+Best max_depth: 4 (vs 20)
+Best min_samples_split: 1.0 (vs 20)
+Best min_samples_leaf: 1 (vs 10)
+
+Random Forest Classifier best stats with data005.pickle:
+* need to fix data
+
+
+Try for ANN Trial:
+DATA = ['data002.pickle', 'data003.pickle', 'data006.pickle', 'data007.pickle']
+UNITS = [6, 20, 50]
+LAYERS = [1, 2, 5]
+EPOCHS = [60]
+BATCH_SIZE = [64, 128, 256]
+SPLIT = [.4]

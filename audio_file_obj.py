@@ -35,6 +35,10 @@ def get_label(start, end, labels):
             if labels.loc[i, 'start'] <= start:  # if the clip starts after the current label does
                 return labels.loc[i, 'label']
             else:  # fix this to account for incomplete labels
+                if labels.loc[i - 1, 'label'] == 0:  # ignore silences in favor of sounds
+                    return labels.loc[i, 'label']
+                elif labels.loc[i, 'label'] == 0:  # ignore silences in favor of sounds
+                    return labels.loc[i - 1, 'label']
                 len_left = labels.loc[i-1, 'end'] - labels.loc[i-1, 'start']
                 len_right = labels.loc[i, 'end'] - labels.loc[i, 'start']
                 if len_left >= len_right:
@@ -51,6 +55,15 @@ class AudioFile:
         # create option for building dataframe with no labels
         self.labels = pd.read_csv(add_txt(self.name), delimiter="\t", names=["start", "end", "label"])
         self.audio, self.sr = librosa.load(add_wav(filename))
+
+    def alter_labels(self, accuracy=None):
+        if accuracy is None:
+            last_label = self.labels.shape[0]
+            for i in range(0, last_label - 1):
+                if self.labels.loc[i, 'end'] != self.labels.loc[i+1, 'start']:
+                    print('\nInconsistencies in row {}\n'.format(i))
+                    difference = self.labels.loc[i+1, 'start'] - self.labels.loc[i, 'end']
+                    print('difference: {}\n'.format(difference))
 
     def build_dataframe(self, data_types, clip_size, window_size):
         audio_segment = self.audio
@@ -322,3 +335,8 @@ class AudioData:
                 sc = StandardScaler()
                 X = sc.fit_transform(X)
             return input_dim, X
+
+
+data = AudioData(['mean_surr', 'sd', 'label'], clip_size=500, window_size=7250)
+data.print()
+data.pickle_data()
