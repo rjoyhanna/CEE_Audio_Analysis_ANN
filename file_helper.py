@@ -3,6 +3,8 @@ import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+# from audio_file_obj import AudioFile
+
 FOLDER_PATH = 'C:\\Users\\rjoyh\\Desktop\\machine learning\\'
 DATA_FOLDER_PATH = 'C:\\Users\\rjoyh\\Desktop\\machine learning\\data\\'
 TRIAL_FOLDER_NAMES = ['anns', 'confusion', 'loss', 'output']
@@ -149,13 +151,13 @@ def compare_labels(filename, filenames):
 
     labels1 = build_dataframe(filenames[0], clip_len).label
     labels2 = build_dataframe(filenames[1], clip_len).label
-    labels3 = build_dataframe(filenames[2], clip_len).label
+    # labels3 = build_dataframe(filenames[2], clip_len).label
     # labels4 = build_dataframe(filenames[3], clip_len).label
 
     compare_two_labels(labels1, labels2, filenames[0], filenames[1])
-    compare_two_labels(labels1, labels3, filenames[0], filenames[2])
+    # compare_two_labels(labels1, labels3, filenames[0], filenames[2])
     # compare_two_labels(labels1, labels4, filenames[0], filenames[3])
-    compare_two_labels(labels2, labels3, filenames[1], filenames[2])
+    # compare_two_labels(labels2, labels3, filenames[1], filenames[2])
     # compare_two_labels(labels2, labels4, filenames[1], filenames[3])
     # compare_two_labels(labels3, labels4, filenames[2], filenames[3])
 
@@ -190,7 +192,7 @@ def compare_two_labels(labels1, labels2, name1, name2):
     plt.clf()
 
 
-# compare_labels('track10', ['track10_labels_Jordan.txt', 'track10_labels_Rachel.txt', 'track10_labels_Shahzeb.txt'])
+# compare_labels('track10', ['track10_labels_Celine.txt', 'track10_labels_Rachel.txt'])
 # compare_labels('track10', ['track10_labels.txt', 'track10_labels_Jordan.txt', 'track10_labels_Shahzeb.txt', 'track10_labels_Matt.txt'])
 
 
@@ -227,3 +229,39 @@ def display_segmented_audio(filename, label_filename):
 
 
 # display_segmented_audio('track2.wav', 'track2_labels.txt')
+
+from audio_file_obj import DEFAULT_CLIP_SIZE
+from audio_file_obj import MILL_TO_SEC
+
+
+def create_label_track(filename, labels, clip_size=None):
+    f = open(filename, "w+")
+    f.close()
+    if clip_size is None:
+        clip_size = DEFAULT_CLIP_SIZE
+    start = 0
+    end = 0
+    label = -1
+    i = 0
+    for clip in labels:
+        i += 1
+        if clip == label:
+            end = end + clip_size
+            label = clip
+            if i == labels.shape[0]:
+                add_label_row(filename, start / MILL_TO_SEC, end / MILL_TO_SEC, label)
+        else:
+            print('else')
+            add_label_row(filename, start/MILL_TO_SEC, end/MILL_TO_SEC, label)
+            start = end
+            end = start + clip_size
+            label = clip
+
+
+def add_label_row(filename, start, end, label):
+    if label != -1:
+        f = open(filename, "a")
+        print("{}\t{}\t{}\n".format(start, end, label))
+        f.write("{}\t{}\t{}\n".format(start, end, label))
+        f.close()
+

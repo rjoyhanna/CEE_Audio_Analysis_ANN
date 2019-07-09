@@ -11,9 +11,11 @@ import librosa
 import numpy as np
 import pickle
 
-SUPPORTED_DATA_TYPES = ['fourier', 'fourier_surr', 'mean', 'sd', 'mean_surr', 'sd_surr', 'sd_full', 'mean_full', 'label']
+SUPPORTED_DATA_TYPES = ['fourier', 'fourier_surr', 'mean', 'sd', 'mean_surr', 'sd_surr', 'mean_surr2', 'sd_surr2',
+                        'sd_full', 'mean_full', 'label']
 DEFAULT_CLIP_SIZE = 500  # half second total
 DEFAULT_WINDOW_SIZE = 2500  # 5 seconds total
+DEFAULT_WINDOW_SIZE2 = 10000  # 5 seconds total
 MILL_TO_SEC = 1000
 SEED = 7
 
@@ -48,12 +50,29 @@ def get_label(start, end, labels):
     return -1  # remove rows with missing labels
 
 
+def simplify_labels(labels, threshold=1):
+    last_label = labels.shape[0]
+    for i in range(0, last_label):
+        if labels.loc[i, 'end'] - labels.loc[i, 'start'] < threshold:
+            curr_label = labels.loc[i, 'label']
+            if i > 0:
+                if i < last_label - 1:
+                    left_label = labels.loc[i - 1, 'label']
+                    right_label = labels.loc[i + 1, 'label']
+                    if left_label == right_label:
+                        labels.loc[i, 'label'] = left_label
+                    # elif left_label == 0 and curr_label == :
+    return labels
+
+
 # filename should not include an extension
 class AudioFile:
     def __init__(self, filename):
         self.name = filename
         # create option for building dataframe with no labels
         self.labels = pd.read_csv(add_txt(self.name), delimiter="\t", names=["start", "end", "label"])
+        # self.labels = simplify_labels(pd.read_csv(add_txt(self.name), delimiter="\t", names=["start", "end", "label"]),
+        #                               threshold=1)
         self.audio, self.sr = librosa.load(add_wav(filename))
 
     def alter_labels(self, accuracy=None):
@@ -65,7 +84,7 @@ class AudioFile:
                     difference = self.labels.loc[i+1, 'start'] - self.labels.loc[i, 'end']
                     print('difference: {}\n'.format(difference))
 
-    def build_dataframe(self, data_types, clip_size, window_size):
+    def build_dataframe(self, data_types, clip_size, window_size, window_size2):
         audio_segment = self.audio
         sr = self.sr
         labels = self.labels
@@ -76,6 +95,7 @@ class AudioFile:
         num_i = int(clip_len / clip_size)
         data = pd.DataFrame()
         leftover = 0
+        leftover2 = 0
 
         for data_type in data_types:
             print(data_type)
@@ -118,6 +138,26 @@ class AudioFile:
                     surr_end = end + window_size + leftover
                 surr_clip = audio_segment[
                             int(surr_start):int(surr_end)]  # creates 10 second clip of the surrounding audio
+
+            surr_clip2 = None
+            if ('mean_surr2' in data_types) or ('sd_surr2' in data_types):
+                if start - window_size2 < 0:
+                    surr_start2 = 0
+                    leftover2 = (start - window_size2) * -1
+                else:
+                    surr_start2 = start - window_size2
+                if end + window_size2 + leftover2 > clip_len:
+                    surr_end2 = clip_len  # we may want to change this so that it wil ALWAYS be 10 seconds
+                    new_start2 = surr_start2 + (clip_len - (end + window_size2 + leftover2))
+                    if new_start2 >= 0:
+                        surr_start2 = new_start2
+                    else:
+                        surr_start2 = 0
+                else:
+                    surr_end2 = end + window_size2 + leftover2
+                surr_clip2 = audio_segment[
+                            int(surr_start2):int(surr_end2)]  # creates 10 second clip of the surrounding audio
+
             if 'label' in data_types:
                 seg_label = get_label(start, end, labels)  # find label for clip
                 data_dict['label'] = seg_label
@@ -140,16 +180,27 @@ class AudioFile:
                     mean_surr = np.mean(surr_rms)
                     data_dict['mean_surr'] = mean_surr
 
+            if ('sd_surr2' in data_types) or ('mean_surr2' in data_types):
+                surr_rms2 = librosa.feature.rms(y=surr_clip2).flatten()
+                if 'sd_surr2' in data_types:
+                    sd_surr2 = np.std(surr_rms2)
+                    data_dict['sd_surr2'] = sd_surr2
+                if 'mean_surr2' in data_types:
+                    mean_surr2 = np.mean(surr_rms2)
+                    data_dict['mean_surr2'] = mean_surr2
+
             if 'fourier' in data_types:
-                fourier = np.abs(librosa.stft(new_clip)).flatten()
+                fourier = np.abs(librosa.stft(new_clip))
+                # print(fourier.shape)
+                fourier = fourier.flatten()
                 data_dict['fourier'] = fourier
 
             if 'fourier_surr' in data_types:
                 fourier_surr = np.abs(librosa.stft(surr_clip)).flatten()
                 data_dict['fourier_surr'] = fourier_surr
 
-            if i % 100 == 0:
-                print("adding row ", i, " of ", num_i, " to the DataFrame")
+            # if i % 100 == 0:
+                # print("adding row ", i, " of ", num_i, " to the DataFrame")
 
             # at this point, all values should be None except those that we want
             data = data.append(data_dict, ignore_index=True)
@@ -173,7 +224,7 @@ class AudioFile:
 
 
 class AudioData:
-    def __init__(self, data_types, files=get_valid_audio_files(), clip_size=None, window_size=None):
+    def __init__(self, data_types, files=get_valid_audio_files(), clip_size=None, window_size=None, window_size2=None):
         # create new file
         self.data_types = data_types                            # an array of kinds of data for these files
         self.file_names = files
@@ -185,6 +236,12 @@ class AudioData:
             self.window_size = DEFAULT_WINDOW_SIZE              # float of the size of each surrounding window
         else:
             self.window_size = window_size                      # float of the size of each surrounding window
+
+        if window_size2 is None:
+            self.window_size2 = DEFAULT_WINDOW_SIZE2              # float of the size of each surrounding window
+        else:
+            self.window_size2 = window_size2                      # float of the size of each surrounding window
+
         list_of_objs = []
         for file in files:
             if file in get_valid_audio_files():
@@ -197,10 +254,12 @@ class AudioData:
         for file in self.files:
             print('Building dataframe for {}'.format(file))
             print(self.data_types)
-            self.data_lengths, file_data = file.build_dataframe(self.data_types, self.clip_size, self.window_size)
+            self.data_lengths, file_data = file.build_dataframe(self.data_types, self.clip_size, self.window_size,
+                                                                self.window_size2)
             # data_lengths[i] = number of columns of data_types[i]
             self.data = self.data.append(file_data)
-        self.data = self.data[self.data.label != -1]
+        if 'label' in self.data_types:
+            self.data = self.data[self.data.label != -1]
         self.data.dropna()
         self.total_inputs = sum(self.data_lengths)
 
@@ -272,6 +331,10 @@ class AudioData:
         self.data_lengths = self.data_lengths + data_lengths
         self.total_inputs = sum(self.data_lengths)
 
+    def remove_cols(self, data_types):
+        self.data = self.data[data_types]
+        self.data_types = data_types
+
     def prep_for_ann(self, scaled=False, split=None):  # if split is None, that means we have no labels
         # define input dimension
         flattened_data = pd.DataFrame()
@@ -337,6 +400,7 @@ class AudioData:
             return input_dim, X
 
 
-data = AudioData(['mean_surr', 'sd', 'label'], clip_size=500, window_size=7250)
-data.print()
-data.pickle_data()
+# data = AudioData(['mean_full', 'sd_full', 'mean_surr', 'sd', 'mean', 'sd_surr', 'mean_surr2', 'sd_surr2', 'label'],
+#                  clip_size=500, window_size=5000, window_size2=10000)
+# data.print()
+# data.pickle_data()
