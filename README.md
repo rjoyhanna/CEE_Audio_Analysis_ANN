@@ -1,7 +1,30 @@
-# A lecture audio analysis module for Python 3
-_Our goal is to analyze lecture audio and gain as much information as possible (such as number of words, questions asked, or time spent lecturing/discussing/silent) to aid in research into interactive teaching_
+# Lecture Audio Analysis
+_Center for Educational Effectiveness at UC Davis_
 
-## Use these functions in the ML folder to get started analyzing audio quickly
+We began with the following goals:
+- Split audio clips into **single voice**, **multiple voic**e, **no voice**, and **other**
+- Determine amount of **interactive learning** in audio file
+- Determine whether a question has been asked by the professor
+
+The project was broken into two approaches; one using **machine learning** and the other using a **heuristic** approach. 
+
+Using the `librosa` Python module, we split the audio into silence and lecturing. This works for high quality audio with very little ambient sound, such as from **UC Davis lecture capture**. This provides a rough idea of how many minutes were spent with the professor lecturing. In the future we could also explore number of words and/or questions asked.
+
+Using machine learning, we explored a **Sklearn** `Random Forest Classifier` and a **Keras** `Sequential model`. These were initially meant to split audio into 4 labels: **silence** (0), **lecturing** (1), **student discussion** (2), and **other** (3). However, with insufficient data from ~50 lectures (as opposed to the 1,500 we wanted) we may shift our approach to only recognizing student participation (discussion, asking questions, etc.)
+
+## Compatible Audio
+
+To use this library, all files must be in `.wav` format. The easiest way is to download ffmpeg:
+
+[ffmpeg download](https://ffmpeg.org/download.html)
+
+Then run this command to convert files:
+
+```console
+ffmpeg -i input_file.mp4 output_file.wav
+```
+
+## Getting Started with Machine Learning analysis
 
 ### 1. Test many versions of Random Forest Classifiers on different data sets
 ```python
@@ -44,5 +67,20 @@ data_types = ['mean', 'sd', 'mean_surr', 'sd_surr', 'mean_surr2', 'sd_surr2', 's
 data = AudioData(data_types, clip_size=my_clip_size, window_size=my_window_size, window_size2=my_window_size2)
 data.print()
 data.pickle_data()
+```
+
+## Getting Started with Heuristic analysis
+
+```python
+audio_file = 'output_audio'
+
+# Initializes an instance of the LectureAudio class.
+lecture = LectureAudio(audio_file)
+
+# Splits on silence based on testing different parameters
+lecture.test_splits()
+
+# save the audio file with trimmed trailing and leading silence
+lecture.save_trimmed_file()
 ```
 

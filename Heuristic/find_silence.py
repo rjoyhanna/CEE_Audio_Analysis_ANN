@@ -93,7 +93,7 @@ class LectureAudio:
         f.close()
 
         for row in intervals:
-            self.add_label_row(filename, row[0] / 1000, row[1] / 1000, 1)
+            self.add_label_row(filename, row[0] / self.sr, row[1] / self.sr, 1)
 
     @staticmethod
     def add_label_row(filename, start, end, label):
