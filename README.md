@@ -1,4 +1,7 @@
-# Use these functions in the ML folder to get started analyzing audio quickly
+# A lecture audio analysis module for Python 3
+_Our goal is to analyze lecture audio and gain as much information as possible (such as number of words, questions asked, or time spent lecturing/discussing/silent) to aid in research into interactive teaching_
+
+## Use these functions in the ML folder to get started analyzing audio quickly
 
 ### 1. Test many versions of Random Forest Classifiers on different data sets
 ```python
