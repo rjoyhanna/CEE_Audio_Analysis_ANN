@@ -1,6 +1,7 @@
 import librosa
 import sys
 import numpy as np
+import speech_recognition as sr
 
 sys.path.append('../')
 from ML.file_helper import add_wav
@@ -219,6 +220,8 @@ class LectureAudio:
         for row in new_intervals:
             self.add_label_row(filename, row[0] / self.sr, row[1] / self.sr, 1)
 
+    # FIX ME
+    # we might not be catching the last label
     def glob_labels(self, intervals):
         """
         Combines intervals that are directly adjacent (makes labels more readable in Audacity
@@ -370,7 +373,8 @@ class LectureAudio:
         return percent_trimmed, percent_talking
 
     # TO DO
-    # finish this function
+    # edit so that it reads the words in label chunks
+    # count the number of words
     def analyze_words(self, intervals):
         """
         Finds the number of words and array of words spoken in audio
@@ -383,8 +387,31 @@ class LectureAudio:
             int: number of words spoken in lecture
         """
 
+        r = sr.Recognizer()
+
+        lecture = sr.AudioFile(self.wav_filename)
+
+        with lecture as source:
+            audio = r.record(source, duration=59)
+
+        try:
+            words = r.recognize_google(audio)
+
+            # open the file to make sure we create it if it isn't there
+            words_file = '{}_words.txt'.format(self.base_filename)
+
+            f = open(words_file, "a+")
+            f.write(words)
+            f.close()
+
+            return words
+
+        except sr.UnknownValueError:
+            print("Google Speech Recognition could not understand audio")
+        except sr.RequestError as e:
+            print("Could not request results from Google Speech Recognition service; {0}".format(e))
+
         # return words, num_words
-        pass
 
     # TO DO
     # finish this function
@@ -431,15 +458,15 @@ class LectureAudio:
 if __name__ == '__main__':
 
     # select the base filename to be analyzed
-    audio_file = 'BIS-2A__2019-07-17_12_10_test'
-
-    # create an instance of the LectureAudio class
-    # extract audio info from wav file and trim leading and trailing silence
-    lecture = LectureAudio(audio_file)
+    audio_file = 'speech_tester'
 
     # # create an instance of the LectureAudio class
-    # # only load first 5 seconds to make tests run faster
-    # lecture = LectureAudio(audio_file, duration=1200)
+    # # extract audio info from wav file and trim leading and trailing silence
+    # lecture = LectureAudio(audio_file)
+
+    # create an instance of the LectureAudio class
+    # only load first 1200 seconds to make tests run faster
+    lecture = LectureAudio(audio_file, duration=1200)
 
     # # run and analyze this test if unsure what params will work best for final split
     # frame_lengths = [1024, 2048, 4096]
@@ -450,11 +477,24 @@ if __name__ == '__main__':
     # outputs time intervals for start and end of each lecturing chunk
     intervals = lecture.final_split(threshold=30, hop_length=2048, frame_length=1024)
 
-    # find the percent silence removed and percent of lecture spent talking
-    # save label .txt file(s)
-    # ignore pauses of pause_length number of SECONDS
-    pause_length = 1
-    percent_trimmed, percent_talking = lecture.analyze_audio(intervals, pause_length)
+    # # find the percent silence removed and percent of lecture spent talking
+    # # save label .txt file(s)
+    # # ignore pauses of pause_length number of SECONDS
+    # pause_length = 1
+    # percent_trimmed, percent_talking = lecture.analyze_audio(intervals, pause_length)
 
-    # save a wav file of the audio with leading and trailing silences trimmed
-    lecture.save_trimmed_file()
+    # # save a wav file of the audio with leading and trailing silences trimmed
+    # lecture.save_trimmed_file()
+
+    words = lecture.analyze_words(intervals)
+
+# THINGS TO BE AWARE OF
+# bis 2c hands mics to students who ask questions
+# there is some student background noise
+# I think we would need to tweak the system too much every time to recognize students from lecturer
+
+# use google speech recognition for each chunk of lecturing
+# reading writing level analysis
+# determine if questions were asked
+# tell if a different person is speaking
+# find words per minute
