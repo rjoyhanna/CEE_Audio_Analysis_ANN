@@ -1,5 +1,5 @@
-from new_ann_obj import ANN
-from file_helper import create_trial_folder
+from .new_ann_obj import ANN
+from .file_helper import create_trial_folder
 
 
 # DATA = ['data001.pickle', 'data002.pickle', 'data003.pickle']

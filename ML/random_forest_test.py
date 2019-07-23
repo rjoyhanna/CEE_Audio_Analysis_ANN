@@ -2,10 +2,10 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
-from file_helper import compare_two_labels
-from file_helper import create_label_track
-from file_helper import open_pickled_file
-from audio_file_obj import AudioData
+from .file_helper import compare_two_labels
+from .file_helper import create_label_track
+from .file_helper import open_pickled_file
+from .audio_file_obj import AudioData
 
 
 FEAT_LABELS = ['mean', 'sd', 'mean_surr', 'mean_surr2', 'sd_full', 'mean_full',

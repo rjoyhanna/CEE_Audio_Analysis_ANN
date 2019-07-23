@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import pickle
 from keras.models import Sequential
 from keras.layers import Dense, Dropout
-from file_helper import open_pickled_file
+from .file_helper import open_pickled_file
 import datetime
 
 

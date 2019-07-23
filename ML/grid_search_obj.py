@@ -1,9 +1,9 @@
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
-from file_helper import open_pickled_file
-from random_forest_test import track_test
-from random_forest_test import test_rfc_results
+from .file_helper import open_pickled_file
+from .random_forest_test import track_test
+from .random_forest_test import test_rfc_results
 
 # below are arrays of data types that we are curious about testing
 all_labels = ['mean_full', 'sd_full', 'mean_surr', 'sd', 'mean', 'sd_surr', 'mean_surr2', 'sd_surr2', 'label',

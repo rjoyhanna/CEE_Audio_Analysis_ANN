@@ -1,8 +1,8 @@
-from grid_search_obj import grid_search_test
-from random_forest_test import test_rfc
-from file_helper import compare_labels
-from file_helper import display_segmented_audio
-from audio_file_obj import AudioData
+from .grid_search_obj import grid_search_test
+from .random_forest_test import test_rfc
+from .file_helper import compare_labels
+from .file_helper import display_segmented_audio
+from .audio_file_obj import AudioData
 
 # test many versions of Random Forest Classifiers on different data sets
 data_candidates = None                  # default in grid_search_obj.py is DATA_CANDIDATES
