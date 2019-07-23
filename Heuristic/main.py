@@ -1,6 +1,9 @@
-import find_silence
+# import find_silence
+import librosa
 
 
-# convert audio with this command: ffmpeg -i BIS-2A__2019-07-17_12_10.mp4 output_audio.wav
-threshold = 10
-audio_file = 'output_audio.wav'
+audio_arr, sr = librosa.load('output_audio.wav', duration=600)
+trimmed_audio, index = librosa.effects.trim(audio_arr, top_db=45)
+
+print('from {} to {}'.format(index[0] / sr, index[1] / sr))
+librosa.output.write_wav('{}_trimmed.wav'.format('output_audio'), trimmed_audio, sr)

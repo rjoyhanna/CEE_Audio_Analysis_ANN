@@ -14,7 +14,7 @@ Using machine learning, we explored a **Sklearn** `Random Forest Classifier` and
 
 ## Compatible Audio
 
-To use this library, all files must be in `.wav` format. The easiest way is to download ffmpeg:
+To use this library, all files must be in `.wav` format. The easiest way to convert them is to download ffmpeg:
 
 [ffmpeg download](https://ffmpeg.org/download.html)
 

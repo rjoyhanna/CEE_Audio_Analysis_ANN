@@ -1,0 +1,7 @@
+BIS-2A__2019-07-15_12_10:
+Removed 11.57% of the audio as leading or trailing silence.
+Of the remaining audio, 52.15% was lecture, and 47.85% was silence.
+
+BIS-2A__2019-07-17_12_10:
+Removed 17.43% of the audio as leading or trailing silence.
+Of the remaining audio, 60.40% was lecture, and 39.60% was silence.
