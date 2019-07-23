@@ -24,6 +24,7 @@ Then run this command to convert files:
 ffmpeg -i input_file.mp4 output_file.wav
 ```
 
+All label `.txt` files are compatible with [Audacity](https://www.audacityteam.org/). They can be imported as labels for the matching audio `.wav` file.
 ## Getting Started with Machine Learning analysis
 
 ### 1. Test many versions of Random Forest Classifiers on different data sets
@@ -71,16 +72,47 @@ data.pickle_data()
 
 ## Getting Started with Heuristic analysis
 
+All audio files must be in .wav format since this module uses `librosa`. To load a file, use a string without the file extension. So if your file was named `input_audio.wav`, load it as shown:
+
 ```python
-audio_file = 'output_audio'
+audio_file = 'input_audio'
 
-# Initializes an instance of the LectureAudio class.
+# create an instance of the LectureAudio class
+# extract audio info from wav file and trim leading and trailing silence
 lecture = LectureAudio(audio_file)
-
-# Splits on silence based on testing different parameters
-lecture.test_splits()
-
-# save the audio file with trimmed trailing and leading silence
-lecture.save_trimmed_file()
 ```
 
+If the file is really long and you want to speed up testing, select only a limited number of seconds as shown:
+```python
+# Only load first 5 seconds to make tests run faster
+lecture_first_5_seconds = LectureAudio(audio_file, duration=5)
+```
+
+Once the LectureAudio object is initialized you can produce sample label files for different silence trimming parameters. You can compare the accuracy in [Audacity](https://www.audacityteam.org/) and then run final_split() with the most accurate parameters.
+```python
+# run and analyze this test if unsure what params will work best for final split
+frame_lengths = [1024, 2048, 4096]
+hop_lengths = [1024, 2048]
+thresholds = [30, 35]
+lecture.test_splits(frame_lengths, hop_lengths, thresholds)
+```
+
+Next, you'll want to split the audio into lecture chunks:
+```python
+# outputs time intervals for start and end of each lecturing chunk
+intervals = lecture.final_split(threshold=30, hop_length=2048, frame_length=1024)
+```
+
+Use analyze_audio() to get the percentage of leading/trailing silence removed from the original file, and the percent of the trimmed audio that is spent lecturing vs silent.
+```python
+# find the percent silence removed and percent of lecture spent talking
+# ignore pauses of pause_length number of SECONDS
+pause_length = 1
+percent_trimmed, percent_talking = lecture.analyze_audio(intervals, pause_length)
+```
+
+For testing output, it may be useful to save the trimmed audio as a `.wav` file. This is because all `.txt` labels that are produced have intervals that relate to the _trimmed_ audio, not the original. You can load this saved `.wav` file and import any of the label `.txt` files to [Audacity](https://www.audacityteam.org/) to see the accuracy  of the analysis.
+```python
+# save a wav file of the audio with leading and trailing silences trimmed
+lecture.save_trimmed_file()
+```
