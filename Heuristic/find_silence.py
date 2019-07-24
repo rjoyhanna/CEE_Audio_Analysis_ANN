@@ -2,6 +2,8 @@ import librosa
 import sys
 import numpy as np
 import speech_recognition as sr
+from textstat import lexicon_count, syllable_count, dale_chall_readability_score
+__all__ = [lexicon_count, syllable_count, dale_chall_readability_score]
 
 sys.path.append('../')
 from ML.file_helper import add_wav
@@ -20,6 +22,8 @@ class LectureAudio:
         audio_arr (np.ndarray): array of floats representing audio signal
         sr (int): the sampling rate used to store the audio signal
         trimmed_audio (np.ndarray): audio_arr with silence trimmed off beginning and end
+        trimmed_filename (string): the name of the trimmed file, WITH the .wav extension
+        trimmed_offset (int): the point of audio_arr where trimmed_audio begins, in SAMPLES
     """
 
     def __init__(self, filename, duration=None):
@@ -49,7 +53,10 @@ class LectureAudio:
         self.sr = sr
 
         # audio with leading and trailing silences trimmed
-        self.trimmed_audio = self.trim_ends()
+        self.trimmed_audio, index = self.trim_ends()
+        self.trimmed_offset = index[0]
+
+        self.trimmed_filename = self.save_trimmed_file()
 
     def trim_ends(self, verbose=False):
         """
@@ -57,6 +64,7 @@ class LectureAudio:
 
         Returns:
             np.ndarray: audio with leading and trailing silence removed
+            list: the interval of audio_arr corresponding to the non-silent region, in SAMPLES
         """
 
         # Trim the beginning and ending silence
@@ -69,7 +77,7 @@ class LectureAudio:
             percent_left = (new_dur / prev_dur) * 100
             print('\nThe audio has been trimmed down to {:0.2f}% the original size.\n'.format(percent_left))
 
-        return trimmed_audio
+        return trimmed_audio, index
 
     def split_on_silence(self, threshold, frame_length, hop_length):
         """
@@ -154,7 +162,6 @@ class LectureAudio:
 
         return new_intervals
 
-    # TEST ME
     def trim_chunks(self, intervals, threshold):
         """
         Trims the leading and trailing silence off each chunk of audio
@@ -185,9 +192,6 @@ class LectureAudio:
 
         return intervals
 
-    # TO DO
-    # edit this so we glob together intervals without pauses as the same label
-    # there might be some helpful functions in ../ML/file_helper.py
     def create_labels(self, intervals, i=None):
         """
         Creates a txt file that can be imported as labels to Audacity
@@ -198,7 +202,7 @@ class LectureAudio:
             i (int): hold the integer val to use in the filename (for creating multiple label files for one audio file
 
         Returns:
-            None
+            np.ndarray: time intervals for start and end of each lecturing chunk, given in SAMPLES, with pauses ignored
         """
 
         # if no number was given, just name the file normally
@@ -220,8 +224,8 @@ class LectureAudio:
         for row in new_intervals:
             self.add_label_row(filename, row[0] / self.sr, row[1] / self.sr, 1)
 
-    # FIX ME
-    # we might not be catching the last label
+        return  new_intervals
+
     def glob_labels(self, intervals):
         """
         Combines intervals that are directly adjacent (makes labels more readable in Audacity
@@ -235,16 +239,24 @@ class LectureAudio:
 
         label_list = []
         label_start = intervals[0][0]
-        label_end = intervals[0][1]
+        # label_end = intervals[0][1]
+
+        max_length = 60 * self.sr  # this keeps the intervals at a good length for speech recognition
 
         for i in range(0, len(intervals) - 1):
             current_interval = intervals[i]
             next_interval = intervals[i + 1]
             if next_interval[0] == current_interval[1]:
-                label_end = next_interval[1]  # set new interval end to the end of the next interval
-
-                if i == len(intervals) - 2:
+                future_length = next_interval[1] - label_start
+                if future_length >= max_length:
+                    label_end = current_interval[1]  # set new interval end to the end of the current interval
                     label_list.append(np.array([label_start, label_end]))
+                    label_start = next_interval[0]
+                else:
+                    label_end = next_interval[1]  # set new interval end to the end of the next interval
+
+                    if i == len(intervals) - 2:
+                        label_list.append(np.array([label_start, label_end]))
 
             else:
                 label_end = current_interval[1]  # set new interval end to the end of the current interval
@@ -326,12 +338,14 @@ class LectureAudio:
         Saves the audio with trimmed leading and trailing silence as a wav file
 
         Returns:
-            None
+            string: the name of the trimmed file
         """
 
         filename = '{}_trimmed.wav'.format(self.base_filename)
         librosa.output.write_wav(filename, self.trimmed_audio, self.sr)
         print('{} was successfully saved!'.format(filename))
+
+        return filename
 
     def analyze_audio(self, intervals, pause_length):
         """
@@ -345,6 +359,7 @@ class LectureAudio:
         Returns:
             float: the percent of time trimmed away from the beginning and end of the audio
             float: the percent of time spent in lecture as compared to the entire trimmed audio
+            np.ndarray: time intervals for start and end of each lecturing chunk, given in SAMPLES, with pauses ignored
         """
 
         # Print the durations
@@ -359,7 +374,7 @@ class LectureAudio:
         adjusted_intervals = self.ignore_silence(intervals, pause_length)
 
         # save a txt file with the labels
-        self.create_labels(adjusted_intervals)
+        final_intervals = self.create_labels(adjusted_intervals)
 
         # add up all the time spent in lecture
         for label in adjusted_intervals:
@@ -370,7 +385,7 @@ class LectureAudio:
         print('Of the remaining audio, {:0.2f}% was lecture, and {:0.2f}% was silence.\n'.format(percent_talking,
                                                                                                  100 - percent_talking))
 
-        return percent_trimmed, percent_talking
+        return percent_trimmed, percent_talking, final_intervals
 
     # TO DO
     # edit so that it reads the words in label chunks
@@ -391,27 +406,64 @@ class LectureAudio:
 
         lecture = sr.AudioFile(self.wav_filename)
 
-        with lecture as source:
-            audio = r.record(source, duration=59)
+        # open the file to make sure we create it if it isn't there
+        words_file = '{}_words.txt'.format(self.base_filename)
 
-        try:
-            words = r.recognize_google(audio)
+        words = ''
+        total_text = []
 
-            # open the file to make sure we create it if it isn't there
-            words_file = '{}_words.txt'.format(self.base_filename)
+        for interval in intervals:
+            with lecture as source:  # should this be outside or inside of the intervals for loop????
+                start = interval[0] / self.sr
+                end = interval[1] / self.sr
 
-            f = open(words_file, "a+")
-            f.write(words)
-            f.close()
+                length = end - start
+                if length < 60:
+                    audio = r.record(source, offset=start+(self.trimmed_offset/self.sr), duration=length)
+                else:
+                    print('Interval starting at {} is too long to recognize.\n'.format(start))
+                    continue
 
-            return words
+            try:
+                words = r.recognize_google(audio)
 
-        except sr.UnknownValueError:
-            print("Google Speech Recognition could not understand audio")
-        except sr.RequestError as e:
-            print("Could not request results from Google Speech Recognition service; {0}".format(e))
+                total_text.append(words)
 
-        # return words, num_words
+                print('start: {}\tend: {}\n'.format(start, end))
+                print(words)
+
+                f = open(words_file, "a+")
+                # f.write('start: {}\tend: {}\n'.format(start, end))
+                f.write(words)
+                f.write('\n')
+                f.close()
+
+            except sr.UnknownValueError:
+                print("Google Speech Recognition could not understand audio")
+                f = open(words_file, "a+")
+                # f.write('start: {}\tend: {}\n'.format(start, end))
+                # f.write('Google Speech Recognition could not understand audio')
+                f.write('\n\n')
+                f.close()
+            except sr.RequestError as e:
+                print("Could not request results from Google Speech Recognition service; {0}".format(e))
+
+        word_string = ''
+        for phrase in total_text:
+            word_string += phrase
+
+        num_words = lexicon_count(word_string, removepunct=True)
+        num_syllables = syllable_count(word_string, lang='en_US')
+
+        # 4.9 or lower	average 4th-grade student or lower
+        # 5.0–5.9	average 5th or 6th-grade student
+        # 6.0–6.9	average 7th or 8th-grade student
+        # 7.0–7.9	average 9th or 10th-grade student
+        # 8.0–8.9	average 11th or 12th-grade student
+        # 9.0–9.9	average 13th to 15th-grade (college) student
+        grade_level = dale_chall_readability_score(word_string)
+
+        return num_words, num_syllables, grade_level, total_text
 
     # TO DO
     # finish this function
@@ -458,15 +510,15 @@ class LectureAudio:
 if __name__ == '__main__':
 
     # select the base filename to be analyzed
-    audio_file = 'speech_tester'
-
-    # # create an instance of the LectureAudio class
-    # # extract audio info from wav file and trim leading and trailing silence
-    # lecture = LectureAudio(audio_file)
+    audio_file = 'BIS-2A__2019-07-17_12_10'
 
     # create an instance of the LectureAudio class
-    # only load first 1200 seconds to make tests run faster
-    lecture = LectureAudio(audio_file, duration=1200)
+    # extract audio info from wav file and trim leading and trailing silence
+    lecture = LectureAudio(audio_file)
+
+    # # create an instance of the LectureAudio class
+    # # only load first 1200 seconds to make tests run faster
+    # lecture = LectureAudio(audio_file, duration=1200)
 
     # # run and analyze this test if unsure what params will work best for final split
     # frame_lengths = [1024, 2048, 4096]
@@ -477,16 +529,18 @@ if __name__ == '__main__':
     # outputs time intervals for start and end of each lecturing chunk
     intervals = lecture.final_split(threshold=30, hop_length=2048, frame_length=1024)
 
-    # # find the percent silence removed and percent of lecture spent talking
-    # # save label .txt file(s)
-    # # ignore pauses of pause_length number of SECONDS
-    # pause_length = 1
-    # percent_trimmed, percent_talking = lecture.analyze_audio(intervals, pause_length)
+    # find the percent silence removed and percent of lecture spent talking
+    # save label .txt file(s)
+    # ignore pauses of pause_length number of SECONDS
+    pause_length = 2
+    percent_trimmed, percent_talking, final_intervals = lecture.analyze_audio(intervals, pause_length)
 
-    # # save a wav file of the audio with leading and trailing silences trimmed
-    # lecture.save_trimmed_file()
+    num_words, num_syllables, grade_level, total_text = lecture.analyze_words(final_intervals)
 
-    words = lecture.analyze_words(intervals)
+    print('Words: {}\nAverage number of syllables: {}\nGrade level: {}\n'.format(num_words, num_syllables / num_words,
+                                                                                 grade_level))
+
+    print(total_text)
 
 # THINGS TO BE AWARE OF
 # bis 2c hands mics to students who ask questions
