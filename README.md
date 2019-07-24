@@ -72,20 +72,22 @@ data.pickle_data()
 
 ## Getting Started with Heuristic analysis
 
-All audio files must be in .wav format since this module uses `librosa`. To load a file, use a string without the file extension. So if your file was named `input_audio.wav`, load it as shown:
+All audio files must be in `.wav` format since this module uses `librosa`. All transcript files must be in `.txt` format and include accurate words, punctuation, and a timestamp of when speaking begins. The easiest way to get the correct format is to take the transcription directly from Aggie Video. To load a file, use a string without the file extension. So if your file was named `input_audio.wav`, load it as shown:
 
 ```python
 audio_file = 'input_audio'
+transcript_file = 'input_audio_transcript'
 
 # create an instance of the LectureAudio class
 # extract audio info from wav file and trim leading and trailing silence
-lecture = LectureAudio(audio_file)
+lecture = LectureAudio(audio_file, transcript_file)
 ```
 
 If the file is really long and you want to speed up testing, select only a limited number of seconds as shown:
 ```python
 # Only load first 5 seconds to make tests run faster
-lecture_first_5_seconds = LectureAudio(audio_file, duration=5)
+# MAKE SURE YOUR TRANSCRIPTION ENDS WHEN THE AUDIO FILE ENDS
+lecture_first_5_seconds = LectureAudio(audio_file, transcript_file, duration=5)
 ```
 
 Once the LectureAudio object is initialized you can produce sample label files for different silence trimming parameters. You can compare the accuracy in [Audacity](https://www.audacityteam.org/) and then run final_split() with the most accurate parameters.
@@ -96,13 +98,21 @@ hop_lengths = [1024, 2048]
 thresholds = [30, 35]
 lecture.test_splits(frame_lengths, hop_lengths, thresholds)
 ```
+Now that you found the best parameters, run all available tests using the `full_analysis()` method:
+```python
+threshold = 30
+hop_length = 2048
+frame_length = 1024
+pause_length = 2
 
-Next, you'll want to split the audio into lecture chunks:
+lecture.full_analysis(pause_length, threshold, hop_length, frame_length)
+```
+### If you want to only use specific methods, don't use `full_analysis()`:
+Now that you found the best parameters, you'll want to split the audio into lecture chunks:
 ```python
 # outputs time intervals for start and end of each lecturing chunk
 intervals = lecture.final_split(threshold=30, hop_length=2048, frame_length=1024)
 ```
-
 Use analyze_audio() to get the percentage of leading/trailing silence removed from the original file, and the percent of the trimmed audio that is spent lecturing vs silent.
 ```python
 # find the percent silence removed and percent of lecture spent talking

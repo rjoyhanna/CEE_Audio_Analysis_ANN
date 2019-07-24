@@ -1,7 +1,30 @@
 BIS-2A__2019-07-15_12_10:
+
 Removed 11.57% of the audio as leading or trailing silence.
-Of the remaining audio, 52.15% was lecture, and 47.85% was silence.
+
+Of the remaining audio, 77.40% was lecture, and 22.60% was silence.
+Of the 1:32:50.652880 of lecture, you spent 1:11:51.852698 talking.
+
+Words: 11661
+Average syllables per word: 1.33
+Transcript grade level: average 11th or 12th-grade student
+
+Words per minute with silence included: 125.60
+That's about 2.09 words per second!
+That is considered a normal conversational speech rate.
+
 
 BIS-2A__2019-07-17_12_10:
+
 Removed 17.43% of the audio as leading or trailing silence.
-Of the remaining audio, 60.40% was lecture, and 39.60% was silence.
+
+Of the remaining audio, 89.42% was lecture, and 10.58% was silence.
+Of the 1:26:41.502041 of lecture, you spent 1:17:31.258776 talking
+
+Words: 12355
+Average number of syllables per word: 1.32
+Grade level: average 11th or 12th-grade student
+
+Words per minute with silence included: 142.52
+That's about 2.38 words per second
+That is considered a normal conversational speech rate.
