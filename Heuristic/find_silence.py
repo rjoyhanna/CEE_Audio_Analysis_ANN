@@ -134,7 +134,7 @@ class LectureAudio:
                     intervals = self.trim_chunks(intervals, threshold)
 
                     # save a txt file with the labels for each set of args
-                    self.create_labels(intervals, i)
+                    self.create_labels(intervals, threshold, i)
 
     def final_split(self, threshold, hop_length, frame_length):
         """
@@ -196,7 +196,7 @@ class LectureAudio:
 
         return intervals
 
-    def create_labels(self, intervals, i=None):
+    def create_labels(self, intervals, threshold, i=None):
         """
         Creates a txt file that can be imported as labels to Audacity
         File will have the columns: start, end, label
@@ -216,7 +216,7 @@ class LectureAudio:
         # otherwise, add the number to the end of the file name
         # this is used when multiple tests are being run on the same audio file
         else:
-            filename = '{}_labels_{}.txt'.format(self.base_filename, i)
+            filename = '{}_labels_{}_{}.txt'.format(self.base_filename, threshold, i)
 
         # open the file to make sure we create it if it isn't there
         f = open(filename, "w+")
@@ -352,7 +352,7 @@ class LectureAudio:
 
         return filename
 
-    def analyze_audio(self, intervals, pause_length):
+    def analyze_audio(self, intervals, pause_length, threshold):
         """
         Finds the percent of audio remaining after trailing and leading silences were removed
         Finds percent of audio that is lecture vs. silence
@@ -379,7 +379,7 @@ class LectureAudio:
         adjusted_intervals = self.ignore_silence(intervals, pause_length)
 
         # save a txt file with the labels
-        final_intervals = self.create_labels(adjusted_intervals)
+        final_intervals = self.create_labels(adjusted_intervals, threshold)
 
         # add up all the time spent in lecture
         for label in adjusted_intervals:
@@ -535,7 +535,7 @@ class LectureAudio:
 
     # TEST
     # not ready until analyze_words() and analyze_questions() are finished
-    def full_analysis(self, pause_length, threshold, hop_length, frame_length):
+    def full_analysis(self, pause_length, threshold_all, threshold_lecture, hop_length, frame_length):
         """
         Analyzes the audio and returns helpful data
 
@@ -548,13 +548,24 @@ class LectureAudio:
             ...
         """
 
-        # outputs time intervals for start and end of each lecturing chunk
-        intervals = self.final_split(threshold=threshold, hop_length=hop_length, frame_length=frame_length)
+        # outputs time intervals for start and end of each speech chunk (includes students)
+        intervals_all = self.final_split(threshold=threshold_all, hop_length=hop_length, frame_length=frame_length)
 
         # find the percent silence removed and percent of lecture spent talking
         # save label .txt file(s)
         # ignore pauses of pause_length number of SECONDS
-        percent_trimmed, talking, new_dur, final_intervals = lecture.analyze_audio(intervals, pause_length)
+        _, total_speech, _, _ = lecture.analyze_audio(intervals_all, pause_length, threshold_all)
+
+        # each lecture chunk is more or less included in the set of speech chunks
+
+        # outputs time intervals for start and end of each lecturing chunk
+        intervals = self.final_split(threshold=threshold_lecture, hop_length=hop_length, frame_length=frame_length)
+
+        # find the percent silence removed and percent of lecture spent talking
+        # save label .txt file(s)
+        # ignore pauses of pause_length number of SECONDS
+        percent_trimmed, talking, new_dur, final_intervals = lecture.analyze_audio(intervals, pause_length,
+                                                                                   threshold_lecture)
 
         num_words, num_syllables, grade_level = lecture.analyze_words(final_intervals)
 
@@ -562,21 +573,36 @@ class LectureAudio:
 
         # calculate the perent time spent in lecture
         percent_talking = (talking / new_dur) * 100
-        print('Of the remaining audio, {:0.2f}% was lecture, and {:0.2f}% was silence.'.format(percent_talking,
-                                                                                                 100 - percent_talking))
+
+        if talking < total_speech:
+            student_participation = total_speech - talking
+        else:
+            student_participation = 0
+
+        percent_student = (student_participation / new_dur) * 100
+
+        print('Of the remaining audio, '
+              '{:0.2f}% was lecture, '
+              '{:0.2f}% was student participation, '
+              'and {:0.2f}% was silence.'.format(percent_talking, percent_student,
+                                                 100 - percent_talking - percent_student))
+
         lecture_time = str(datetime.timedelta(hours=new_dur/60/60))
         talking_time = str(datetime.timedelta(hours=talking/60/60))
+        student_time = str(datetime.timedelta(hours=student_participation/60/60))
 
-        print('Of the {} of lecture, you spent {} talking.\n'.format(lecture_time, talking_time))
+        print('Of the {} of lecture, you spent {} talking, and the class spent () talking.\n'.format(lecture_time,
+                                                                                                     talking_time,
+                                                                                                     student_time))
 
         print('Words: {}\nAverage syllables per word: {:0.2f}\nTranscript grade level: {}\n'.format(num_words,
                                                                                                     num_syllables,
                                                                                                     grade_level))
-
-        words_per_second = num_words / new_dur
+        # would it be more accurate to use talking time instead of total duration?
+        words_per_second = num_words / talking
         words_per_minute = words_per_second * 60
-        print("Words per minute with silence included: {:0.2f}".format(words_per_minute))
-        print('That\'s about {:0.2f} words per second!\n'.format(words_per_second))
+        print("Words per minute: {:0.2f}".format(words_per_minute))
+        print('That\'s about {:0.2f} words per second!'.format(words_per_second))
 
         if words_per_minute < 120:
             print("That is considered a slower-than-average speech rate.")
@@ -591,8 +617,8 @@ class LectureAudio:
 if __name__ == '__main__':
 
     # select the base filename to be analyzed
-    audio_file = 'BIS-2A__2019-07-15_12_10'
-    transcript_file = 'BIS-2A_ 2019-07-15 12_10_transcript'
+    audio_file = 'BIS-2C-C__2019-03-08_10_00'
+    transcript_file = 'BIS-2C-C_ 2019-03-08 10_00_transcript'
 
     # create an instance of the LectureAudio class
     # extract audio info from wav file and trim leading and trailing silence
@@ -603,26 +629,28 @@ if __name__ == '__main__':
     # lecture = LectureAudio(audio_file, duration=1200)
 
     # # run and analyze this test if unsure what params will work best for final split
-    # frame_lengths = [1024, 2048, 4096]
-    # hop_lengths = [1024, 2048]
-    # thresholds = [30, 35]
+    # frame_lengths = [1024]
+    # hop_lengths = [2048]
+    # thresholds = [30, 10]
     # lecture.test_splits(frame_lengths, hop_lengths, thresholds)
 
-    threshold = 30
+    # threshold = 10
+    # hop_length = 2048
+    # frame_length = 1024
+    # pause_length = 2
+    #
+    # lecture.full_analysis(pause_length, threshold, hop_length, frame_length)
+
+    threshold_all = 20
+    threshold_lecture = 35
     hop_length = 2048
     frame_length = 1024
     pause_length = 2
 
-    lecture.full_analysis(pause_length, threshold, hop_length, frame_length)
+    lecture.full_analysis(pause_length, threshold_all, threshold_lecture, hop_length, frame_length)
 
 
 # THINGS TO BE AWARE OF
-# bis 2c hands mics to students who ask questions
-# there is some student background noise
-# I think we would need to tweak the system too much every time to recognize students from lecturer
-
-# use google speech recognition for each chunk of lecturing
-# reading writing level analysis
-# determine if questions were asked
-# tell if a different person is speaking
-# find words per minute
+# 20 db is a good setting to get all speaking sound (includes background noise and student discussion
+# 35 db is a good setting for just lecturing
+# try to combine this data to get student participation time
