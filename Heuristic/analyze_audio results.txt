@@ -2,29 +2,43 @@ BIS-2A__2019-07-15_12_10:
 
 Removed 11.57% of the audio as leading or trailing silence.
 
-Of the remaining audio, 77.40% was lecture, and 22.60% was silence.
-Of the 1:32:50.652880 of lecture, you spent 1:11:51.852698 talking.
+Of the remaining audio, 71.73% was lecture, 8.35% was student participation, and 19.92% was silence.
+Of the 1:32:50.652880 of lecture, you spent 1:06:35.713016 talking, and the class spent 0:07:45.165351 talking.
 
 Words: 11661
 Average syllables per word: 1.33
 Transcript grade level: average 11th or 12th-grade student
 
-Words per minute with silence included: 125.60
-That's about 2.09 words per second!
+Words per minute: 175.10
+That's about 2.92 words per second!
 That is considered a normal conversational speech rate.
-
 
 BIS-2A__2019-07-17_12_10:
 
 Removed 17.43% of the audio as leading or trailing silence.
 
-Of the remaining audio, 89.42% was lecture, and 10.58% was silence.
-Of the 1:26:41.502041 of lecture, you spent 1:17:31.258776 talking
+Of the remaining audio, 82.09% was lecture, 9.20% was student participation, and 8.70% was silence.
+Of the 1:26:41.502041 of lecture, you spent 1:11:10.056780 talking, and the class spent 0:07:58.795465 talking.
 
 Words: 12355
-Average number of syllables per word: 1.32
-Grade level: average 11th or 12th-grade student
+Average syllables per word: 1.32
+Transcript grade level: average 11th or 12th-grade student
 
-Words per minute with silence included: 142.52
-That's about 2.38 words per second
+Words per minute: 173.60
+That's about 2.89 words per second!
+That is considered a normal conversational speech rate.
+
+BIS-2C-C__2019-03-08_10_00:
+
+Removed 10.05% of the audio as leading or trailing silence.
+
+Of the remaining audio, 69.51% was lecture, 15.60% was student participation, and 14.89% was silence.
+Of the 0:49:28.647982 of lecture, you spent 0:34:23.580590 talking, and the class spent 0:07:43.029116 talking.
+
+Words: 4750
+Average syllables per word: 1.27
+Transcript grade level: average 9th or 10th-grade student
+
+Words per minute: 138.11
+That's about 2.30 words per second!
 That is considered a normal conversational speech rate.

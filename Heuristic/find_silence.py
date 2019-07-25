@@ -127,8 +127,8 @@ class LectureAudio:
                     intervals = self.split_on_silence(threshold, hop_length, frame_length)
 
                     # print the number of intervals and the args used
-                    print('{}: {} intervals found using frame_length={}, hop_length={}, threshold={}.'
-                          .format(i, len(intervals), frame_length, hop_length, threshold))
+                    # print('{}: {} intervals found using frame_length={}, hop_length={}, threshold={}.'
+                    #       .format(i, len(intervals), frame_length, hop_length, threshold))
 
                     # for each chunk, trim the leading and trailing silence using the given threshold
                     intervals = self.trim_chunks(intervals, threshold)
@@ -158,8 +158,8 @@ class LectureAudio:
         intervals = self.split_on_silence(threshold, hop_length, frame_length)
 
         # print the number of intervals and the args used
-        print('{} intervals found using frame_length={}, hop_length={}, threshold={}.'
-              .format(len(intervals), frame_length, hop_length, threshold))
+        # print('{} intervals found using frame_length={}, hop_length={}, threshold={}.'
+        #       .format(len(intervals), frame_length, hop_length, threshold))
 
         # for each chunk, trim the leading and trailing silence using the given threshold
         new_intervals = self.trim_chunks(intervals, threshold)
@@ -211,7 +211,7 @@ class LectureAudio:
 
         # if no number was given, just name the file normally
         if i is None:
-            filename = '{}_labels.txt'.format(self.base_filename)
+            filename = '{}_labels_{}.txt'.format(self.base_filename, threshold)
 
         # otherwise, add the number to the end of the file name
         # this is used when multiple tests are being run on the same audio file
@@ -487,12 +487,9 @@ class LectureAudio:
         # return num_questions
         pass
 
-    def analyze_words(self, intervals):
+    def analyze_words(self):
         """
         Finds the number of words and array of words spoken in audio
-
-        Args:
-            intervals (np.ndarray): start and end in milliseconds of each non-silent clip in audio
 
         Returns:
             int: number of words spoken in lecture
@@ -514,8 +511,6 @@ class LectureAudio:
         # 9.0–9.9	average 13th to 15th-grade (college) student
         grade_level = dale_chall_readability_score(data)
 
-        grade_level_string = ''
-
         if grade_level < 5:
             grade_level_string = 'average 4th-grade student or lower'
         elif grade_level < 6:
@@ -534,7 +529,6 @@ class LectureAudio:
         return num_words, num_syllables / num_words, grade_level_string
 
     # TEST
-    # not ready until analyze_words() and analyze_questions() are finished
     def full_analysis(self, pause_length, threshold_all, threshold_lecture, hop_length, frame_length):
         """
         Analyzes the audio and returns helpful data
@@ -567,7 +561,7 @@ class LectureAudio:
         percent_trimmed, talking, new_dur, final_intervals = lecture.analyze_audio(intervals, pause_length,
                                                                                    threshold_lecture)
 
-        num_words, num_syllables, grade_level = lecture.analyze_words(final_intervals)
+        num_words, num_syllables, grade_level = lecture.analyze_words()
 
         print('\nRemoved {:0.2f}% of the audio as leading or trailing silence.\n'.format(percent_trimmed))
 
@@ -591,7 +585,7 @@ class LectureAudio:
         talking_time = str(datetime.timedelta(hours=talking/60/60))
         student_time = str(datetime.timedelta(hours=student_participation/60/60))
 
-        print('Of the {} of lecture, you spent {} talking, and the class spent () talking.\n'.format(lecture_time,
+        print('Of the {} of lecture, you spent {} talking, and the class spent {} talking.\n'.format(lecture_time,
                                                                                                      talking_time,
                                                                                                      student_time))
 
@@ -613,12 +607,16 @@ class LectureAudio:
 
         return percent_trimmed, percent_talking, talking, new_dur, num_words, num_syllables, grade_level, final_intervals, words_per_minute, words_per_second
 
+    def get_edge_case(self, lecture_intervals, all_intervals):
+        for chunk in all_intervals:
+            start = chunk[0]
+            while start
 
 if __name__ == '__main__':
 
     # select the base filename to be analyzed
-    audio_file = 'BIS-2C-C__2019-03-08_10_00'
-    transcript_file = 'BIS-2C-C_ 2019-03-08 10_00_transcript'
+    transcript_file = 'BIS-2A_ 2019-07-17 12_10_transcript'
+    audio_file = 'BIS-2A__2019-07-17_12_10'
 
     # create an instance of the LectureAudio class
     # extract audio info from wav file and trim leading and trailing silence
@@ -641,8 +639,8 @@ if __name__ == '__main__':
     #
     # lecture.full_analysis(pause_length, threshold, hop_length, frame_length)
 
-    threshold_all = 20
-    threshold_lecture = 35
+    threshold_all = 35
+    threshold_lecture = 20
     hop_length = 2048
     frame_length = 1024
     pause_length = 2
