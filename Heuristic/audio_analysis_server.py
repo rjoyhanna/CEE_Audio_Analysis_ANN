@@ -2,7 +2,7 @@ import http.server
 import json
 # from .main import convert_file
 
-response = {"percent_leading/trailing_silence_trimmed": 20.97,
+response = {"percent_leading_trailing_silence_trimmed": 20.97,
             "student_talking_time": 54.8,
             "professor_talking_time": 325.4,
             "class_duration": 417.5,
