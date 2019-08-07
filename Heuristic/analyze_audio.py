@@ -1,7 +1,7 @@
 import librosa
 import numpy as np
-import datetime
 import json
+import math
 from textstat import lexicon_count, syllable_count, dale_chall_readability_score
 __all__ = [lexicon_count, syllable_count, dale_chall_readability_score]
 
@@ -259,13 +259,121 @@ class LectureAudio:
         return num_words, num_syllables / num_words, grade_level_string
 
     def integrate_interval_sets(self, professor_intervals, all_intervals=None):
-        print(professor_intervals)
-        print(all_intervals)
+        if all_intervals is None:
+            all_intervals = np.array([])
 
-        # FIX MEEEEEEE
-        student_intervals = all_intervals
+        student_intervals = self.get_student_intervals(professor_intervals, all_intervals)
+        # all_intervals has 3 values for each chunk: start, end, label
+        # labels:
+        # 0 is silence
+        # 1 is professor
+        # 2 is student
+        all_intervals = self.combine_interval_sets(professor_intervals, student_intervals)
 
         return professor_intervals, student_intervals
+
+    @staticmethod
+    def get_student_intervals(lecture_intervals, all_intervals):
+        """
+        determines the intervals of student participation
+
+        Args:
+            lecture_intervals (np.ndarray): the intervals for lecture
+            all_intervals (np.ndarray): the intervals for all talking in lecture
+
+        Returns:
+            np.ndarray: the intervals for student participation in lecture
+        """
+
+        label_list = []
+
+        for chunk in all_intervals:  # 35 dbs
+            lectures_found = 0
+            for i in range(0, len(lecture_intervals)):  # 20 dbs
+
+                lecture = lecture_intervals[i]
+
+                if chunk[1] > lecture[1] >= chunk[0]:
+
+                    if lectures_found == 0 and lecture[0] > chunk[0]:
+                        label_list.append(np.array([chunk[0], lecture[0]]))
+                        lectures_found += 1
+
+                    lectures_found += 1
+                    start = lecture[1]
+                    lecture_end = lecture_intervals[i + 1][0]
+                    chunk_end = chunk[1]
+                    if chunk_end < lecture_end:
+                        label_list.append(np.array([start, chunk_end]))
+                    else:
+                        label_list.append(np.array([start, lecture_end]))
+                elif lecture[1] == lecture_intervals[len(lecture_intervals) - 1][1] and chunk[1] == lecture[1]:
+                    start = lecture_intervals[len(lecture_intervals) - 2][1]
+                    end = lecture[0]
+                    if chunk[0] > end:
+                        label_list.append(np.array([start, chunk[0]]))
+                    else:
+                        label_list.append(np.array([start, end]))
+                    lectures_found += 1
+
+            if lectures_found == 0:
+                label_list.append(chunk)
+
+        return np.array(label_list)
+
+    @staticmethod
+    def combine_interval_sets(lecture_intervals, student_intervals):
+        label_list = []
+
+        i = 0
+        j = 0
+        lecture_intervals_finished = False
+        student_intervals_finished = False
+
+        if student_intervals.size == 0:
+            student_intervals_finished = True
+
+        if lecture_intervals.size == 0:
+            lecture_intervals_finished = True
+
+        while not lecture_intervals_finished or not student_intervals_finished:
+            if lecture_intervals_finished:
+                lecture_chunk = [math.inf, math.inf]
+            else:
+                lecture_chunk = np.append(lecture_intervals[i], 1)
+
+            if student_intervals_finished:
+                student_chunk = [math.inf, math.inf]
+            else:
+                student_chunk = np.append(student_intervals[j], 2)
+
+            if lecture_chunk[0] < student_chunk[0]:
+                lecture_chunk_comes_first = True
+            else:
+                lecture_chunk_comes_first = False
+
+            if lecture_chunk_comes_first:
+                label_list.append(lecture_chunk)
+                i += 1
+            else:
+                label_list.append(student_chunk)
+                j += 1
+
+            if (i == len(lecture_intervals)):
+                i = -1
+                lecture_intervals_finished = True
+            elif (j == len(student_intervals)):
+                j = -1
+                student_intervals_finished = True
+
+        return np.array(label_list)
+
+    # FINISH MEEEEEEEEEEE
+    @staticmethod
+    def fill_in_label_gaps(intervals):
+        for i in range(0, len(intervals)):
+            chunk = intervals[i]
+
 
     # TEST
     def full_analysis(self, threshold_all, threshold_lecture, hop_length, frame_length, pause_length):
@@ -273,11 +381,11 @@ class LectureAudio:
         Analyzes the audio and returns helpful data
 
         Args:
-            pause_length (int): the max length of silence to be ignored (grouped with lecture), given in SECONDS
             threshold_all (int): the threshold (in decibels) below reference to consider as silence
             threshold_lecture (int): the threshold (in decibels) below reference to consider as silence or class
             hop_length (int): the number of samples between successive frames, e.g., the columns of a spectrogram
             frame_length (int): the (positive integer) number of samples in an analysis window (or frame)
+            pause_length (int): the max length of silence to be ignored (grouped with lecture), given in SECONDS
 
         Returns:
             float: the percent of time trimmed away from the beginning and end of the audio
