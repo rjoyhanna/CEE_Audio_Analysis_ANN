@@ -1,6 +1,12 @@
 import subprocess
 import boto3
 
+
+# redefine these values when we change to the CEE AWS account
+S3_BUCKET_NAME = 'cee-audio-analysis'
+# the server that runs this python code must have a folder for the audio
+AUDIO_FOLDER_NAME = 's3'
+
 VALID_WAV = '.wav'
 VALID_MP3 = '.mp3'
 VALID_TXT = '.txt'
@@ -42,10 +48,10 @@ class DownloadConvertFiles:
     def download_files(self):
         s3 = boto3.resource('s3')
 
-        s3.Bucket('cee-audio-analysis').download_file(self.transcript_filename,
-                                                      's3/{}'.format(self.transcript_filename))
-        s3.Bucket('cee-audio-analysis').download_file(self.audio_filename,
-                                                      's3/{}'.format(self.audio_filename))
+        s3.Bucket('S3_BUCKET_NAME').download_file(self.transcript_filename,
+                                                      '{}/{}'.format(AUDIO_FOLDER_NAME, self.transcript_filename))
+        s3.Bucket('S3_BUCKET_NAME').download_file(self.audio_filename,
+                                                      '{}/{}'.format(AUDIO_FOLDER_NAME, self.audio_filename))
 
     def convert_file(self):
         subprocess.call(self.video_convert_command, shell=True)

@@ -6,12 +6,9 @@ import datetime
 from textstat import lexicon_count, syllable_count, dale_chall_readability_score
 __all__ = [lexicon_count, syllable_count, dale_chall_readability_score]
 
-sys.path.append('../')
-from ML.file_helper import add_wav
-
-
 # Ctrl + F (TEST ME) to find functions that still need to be tested
 # Ctrl + F (TO DO) to proceed to next steps
+
 
 class LectureAudio:
     """
@@ -33,13 +30,13 @@ class LectureAudio:
         Initializes an instance of the LectureAudio class.
 
         Args:
-            filename (string): without file extension, the name of the file you want to analyze
+            filename (string): without file extension, the name of the file you want to analyze -- now a url
             transcript (string): without file extension, the name of the transcript file
             duration (int): length in seconds of audio to be loaded in
         """
 
         self.base_filename = filename
-        self.wav_filename = add_wav(filename)
+        self.wav_filename = filename + '.wav'
         self.transcript_filename = transcript + '.txt'
 
         # if no duration was given, just load the entire wv file

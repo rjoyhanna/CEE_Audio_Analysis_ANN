@@ -1,11 +1,10 @@
 import librosa
 import numpy as np
-import speech_recognition as sr
 import datetime
 from textstat import lexicon_count, syllable_count, dale_chall_readability_score
 __all__ = [lexicon_count, syllable_count, dale_chall_readability_score]
 
-from .download_convert_files import DownloadConvertFiles, remove_file_type, VALID_TXT, VALID_AUDIO, return_file_type
+from download_convert_files import DownloadConvertFiles, remove_file_type, VALID_TXT, VALID_AUDIO, return_file_type
 
 # Ctrl + F (TEST ME) to find functions that still need to be tested
 # Ctrl + F (TO DO) to proceed to next steps
@@ -16,9 +15,10 @@ class LectureAudio:
     A lecture audio object that holds information about an imported wav file
 
     Attributes:
-        base_filename (string): the name of the file being analyzed, WITHOUT the .wav extension
+        original_audio_filename (string): the name of the file being analyzed, WITH the original extension
         wav_filename (string): the name of the file being analyzed, WITH the .wav extension
         transcript_filename (string): the name of the transcript file, WITH the .txt extension
+        file_handler (object): the object that downloads, converts, and deletes audio files from AWS s3
         audio_arr (np.ndarray): array of floats representing audio signal
         sr (int): the sampling rate used to store the audio signal
         trimmed_audio (np.ndarray): audio_arr with silence trimmed off beginning and end
@@ -69,6 +69,8 @@ class LectureAudio:
 
         self.trimmed_filename = self.save_trimmed_file()
 
+        self.silence_threshold = self.get_silence_threshold()
+
     def trim_ends(self, verbose=False):
         """
         Trims the silence off of the beginning and end of the audio
@@ -90,6 +92,21 @@ class LectureAudio:
 
         return trimmed_audio, index
 
+    def get_silence_threshold(self):
+        mean = np.mean(self.trimmed_audio)
+        max = np.amax(self.trimmed_audio)
+        min = np.amin(self.trimmed_audio)
+        std = np.std(self.trimmed_audio)
+
+        i = 0
+
+        for threshold in [20, 25, 30, 35, 40]:
+            intervals = self.split_on_silence(threshold, hop_length, frame_length)
+            intervals = self.trim_chunks(intervals, threshold)
+            self.create_labels(intervals, str(threshold), i)
+            i += 1
+        return threshold
+
     def split_on_silence(self, threshold, frame_length, hop_length):
         """
         Splits the audio into intervals of sound with silent beginnings and endings
@@ -107,41 +124,6 @@ class LectureAudio:
                                           hop_length=hop_length)
 
         return intervals
-
-    def test_splits(self, frame_lengths, hop_lengths, thresholds):
-        """
-        Tests different parameters used to split the audio on the silence
-        Calls split_on_silence() for each different set of parameters
-        User can analyze the printed results and saved label files to determine best params for final_split
-
-        Args:
-            frame_lengths (list): possible frame length values to try as argument in split_on_silence()
-            hop_lengths (list): possible hop length values to try as argument in split_on_silence()
-            thresholds (list): possible threshold values to try as argument in split_on_silence()
-
-        Returns:
-            None
-        """
-
-        i = 0
-        for frame_length in frame_lengths:
-            for hop_length in hop_lengths:
-                for threshold in thresholds:
-
-                    i += 1
-
-                    # for each set of arguments, split the audio into chunks with leading and trialing silence
-                    intervals = self.split_on_silence(threshold, hop_length, frame_length)
-
-                    # print the number of intervals and the args used
-                    # print('{}: {} intervals found using frame_length={}, hop_length={}, threshold={}.'
-                    #       .format(i, len(intervals), frame_length, hop_length, threshold))
-
-                    # for each chunk, trim the leading and trailing silence using the given threshold
-                    intervals = self.trim_chunks(intervals, threshold)
-
-                    # save a txt file with the labels for each set of args
-                    self.create_labels(intervals, threshold, i)
 
     def final_split(self, threshold, hop_length, frame_length):
         """
@@ -356,7 +338,7 @@ class LectureAudio:
             string: the name of the trimmed file
         """
 
-        filename = '{}_trimmed.wav'.format(self.base_filename)
+        filename = '{}_trimmed.wav'.format(remove_file_type(self.original_audio_filename))
         librosa.output.write_wav(filename, self.trimmed_audio, self.sr)
         print('{} was successfully saved!'.format(filename))
 
@@ -397,104 +379,6 @@ class LectureAudio:
             talking += (label[1] - label[0]) / self.sr
 
         return percent_trimmed, talking, new_dur, final_intervals
-
-    # TO DO
-    def analyze_words_speech_recognition(self, intervals):
-        """
-        Finds the number of words and array of words spoken in audio
-
-        Args:
-            intervals (np.ndarray): start and end in milliseconds of each non-silent clip in audio
-
-        Returns:
-            list: words spoken in lecture
-            int: number of words spoken in lecture
-        """
-
-        r = sr.Recognizer()
-
-        lecture = sr.AudioFile(self.wav_filename)
-
-        # open the file to make sure we create it if it isn't there
-        words_file = '{}_words.txt'.format(self.base_filename)
-
-        words = ''
-        total_text = []
-
-        for interval in intervals:
-            with lecture as source:  # should this be outside or inside of the intervals for loop????
-                start = interval[0] / self.sr
-                end = interval[1] / self.sr
-
-                length = end - start
-                if length < 60:
-                    audio = r.record(source, offset=start+(self.trimmed_offset/self.sr), duration=length)
-                else:
-                    print('Interval starting at {} is too long to recognize.\n'.format(start))
-                    continue
-
-            try:
-                words = r.recognize_google(audio)
-
-                total_text.append(words)
-
-                print('start: {}\tend: {}\n'.format(start, end))
-                print(words)
-
-                f = open(words_file, "a+")
-                # f.write('start: {}\tend: {}\n'.format(start, end))
-                f.write(words)
-                f.write('\n')
-                f.close()
-
-            except sr.UnknownValueError:
-                print("Google Speech Recognition could not understand audio")
-
-                total_text.append('')
-
-                f = open(words_file, "a+")
-                # f.write('start: {}\tend: {}\n'.format(start, end))
-                # f.write('Google Speech Recognition could not understand audio')
-                f.write('\n\n')
-                f.close()
-            except sr.RequestError as e:
-                print("Could not request results from Google Speech Recognition service; {0}".format(e))
-
-                total_text.append('')
-
-        word_string = ''
-        for phrase in total_text:
-            word_string = word_string + ' ' + phrase
-
-        num_words = lexicon_count(word_string, removepunct=True)
-        num_syllables = syllable_count(word_string, lang='en_US')
-
-        # 4.9 or lower	average 4th-grade student or lower
-        # 5.0–5.9	average 5th or 6th-grade student
-        # 6.0–6.9	average 7th or 8th-grade student
-        # 7.0–7.9	average 9th or 10th-grade student
-        # 8.0–8.9	average 11th or 12th-grade student
-        # 9.0–9.9	average 13th to 15th-grade (college) student
-        grade_level = dale_chall_readability_score(word_string)
-
-        return num_words, num_syllables, grade_level, total_text
-
-    # TO DO
-    # finish this function
-    def analyze_questions(self, intervals, words):
-        """
-        Finds the number of questions asked based on an array of words and intervals of talking
-
-        Args:
-            intervals (np.ndarray): start and end in milliseconds of each non-silent clip in audio
-            words (list): words spoken during the lecture
-
-        Returns:
-            int: number of questions asked during lecture
-        """
-
-        # return num_questions
-        pass
 
     def analyze_words(self):
         """
@@ -711,12 +595,14 @@ class LectureAudio:
 if __name__ == '__main__':
 
     # select the base filename to be analyzed
-    transcript_file = 'BIS-2A_ 2019-07-17 12_10_transcript'
-    audio_file = 'BIS-2A__2019-07-17_12_10_tester'
+    transcript_file = 'BIS-2A_ 2019-07-17 12_10_transcript.txt'
+    audio_file = 'BIS-2A__2019-07-17_12_10.mp4'
 
     # create an instance of the LectureAudio class
     # extract audio info from wav file and trim leading and trailing silence
     lecture = LectureAudio(audio_file, transcript_file)
+
+    lecture.get_silence_threshold()
 
     # # create an instance of the LectureAudio class
     # # only load first 1200 seconds to make tests run faster
@@ -735,13 +621,13 @@ if __name__ == '__main__':
     #
     # lecture.full_analysis(pause_length, threshold, hop_length, frame_length)
 
-    threshold_all = 35
-    threshold_lecture = 20
-    hop_length = 2048
-    frame_length = 1024
-    pause_length = 2
-
-    lecture.full_analysis(pause_length, threshold_all, threshold_lecture, hop_length, frame_length)
+    # threshold_all = 35
+    # threshold_lecture = 20
+    # hop_length = 2048
+    # frame_length = 1024
+    # pause_length = 2
+    #
+    # lecture.full_analysis(pause_length, threshold_all, threshold_lecture, hop_length, frame_length)
 
 
 # THINGS TO BE AWARE OF
