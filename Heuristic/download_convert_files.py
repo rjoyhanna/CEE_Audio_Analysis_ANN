@@ -45,16 +45,23 @@ class DownloadConvertFiles:
         self.download_files()
         self.convert_file()
 
+        self.s3 = boto3.resource('s3')
+
     def download_files(self):
         s3 = boto3.resource('s3')
-
-        s3.Bucket('S3_BUCKET_NAME').download_file(self.transcript_filename,
+        s3.Bucket(S3_BUCKET_NAME).download_file(self.transcript_filename,
                                                       '{}/{}'.format(AUDIO_FOLDER_NAME, self.transcript_filename))
-        s3.Bucket('S3_BUCKET_NAME').download_file(self.audio_filename,
+        s3.Bucket(S3_BUCKET_NAME).download_file(self.audio_filename,
                                                       '{}/{}'.format(AUDIO_FOLDER_NAME, self.audio_filename))
 
     def convert_file(self):
         subprocess.call(self.video_convert_command, shell=True)
+
+    def upload_file(self, new_filename):
+        print('{} has started its upload to your s3 bucket!'.format(new_filename))
+        s3 = boto3.resource('s3')
+        s3.Bucket(S3_BUCKET_NAME).upload_file(new_filename, new_filename)
+        print('{} has finished uploading to your s3 bucket!'.format(new_filename))
 
 
 if __name__ == '__main__':

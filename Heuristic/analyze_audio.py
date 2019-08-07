@@ -1,6 +1,7 @@
 import librosa
 import numpy as np
 import datetime
+import json
 from textstat import lexicon_count, syllable_count, dale_chall_readability_score
 __all__ = [lexicon_count, syllable_count, dale_chall_readability_score]
 
@@ -26,7 +27,7 @@ class LectureAudio:
         trimmed_offset (int): the point of audio_arr where trimmed_audio begins, in SAMPLES
     """
 
-    def __init__(self, filename, transcript, duration=None):
+    def __init__(self, filename, transcript, duration=None, download_needed=True):
         """
         Initializes an instance of the LectureAudio class.
 
@@ -47,7 +48,8 @@ class LectureAudio:
         else:
             raise ValueError('transcript must be of type {}'.format(VALID_TXT))
 
-        self.file_handler = DownloadConvertFiles(self.original_audio_filename, self.transcript_filename)
+        if download_needed:
+            self.file_handler = DownloadConvertFiles(self.original_audio_filename, self.transcript_filename)
 
         # if no duration was given, just load the entire wav file
         if duration is None:
@@ -67,7 +69,13 @@ class LectureAudio:
         self.trimmed_audio, index = self.trim_ends()
         self.trimmed_offset = index[0]
 
-        self.trimmed_filename = self.save_trimmed_file()
+        self.trimmed_filename = '{}_trimmed.wav'.format(remove_file_type(self.original_audio_filename))
+        librosa.output.write_wav(filename, self.trimmed_audio, self.sr)
+        print('{} was successfully saved!'.format(filename))
+
+        # save the new trimmed wav file to the s3 bucket
+        if download_needed:
+            self.file_handler.upload_file(self.trimmed_filename)
 
         self.silence_threshold = self.get_silence_threshold()
 
@@ -98,16 +106,22 @@ class LectureAudio:
         min = np.amin(self.trimmed_audio)
         std = np.std(self.trimmed_audio)
 
+        frame_length = 2048
+        hop_length = 1024
+        pause_length = 2
+
         i = 0
 
         for threshold in [20, 25, 30, 35, 40]:
-            intervals = self.split_on_silence(threshold, hop_length, frame_length)
-            intervals = self.trim_chunks(intervals, threshold)
+            intervals = self.split_on_silence(threshold, hop_length, frame_length, pause_length)
             self.create_labels(intervals, str(threshold), i)
             i += 1
+
+        # print('{}, {}, {}, {}'.format(mean, max, min, std))
+
         return threshold
 
-    def split_on_silence(self, threshold, frame_length, hop_length):
+    def split_on_silence(self, threshold, hop_length, frame_length, pause):
         """
         Splits the audio into intervals of sound with silent beginnings and endings
 
@@ -122,50 +136,6 @@ class LectureAudio:
 
         intervals = librosa.effects.split(self.trimmed_audio, top_db=threshold, frame_length=frame_length,
                                           hop_length=hop_length)
-
-        return intervals
-
-    def final_split(self, threshold, hop_length, frame_length):
-        """
-        Splits the audio on silence once you determine the best parameters
-
-        Best for BIS-2A__2019-07-17_12_10.wav:
-        *** 1173 intervals found using frame_length=1024, hop_length=2048, threshold=30.
-            1125 intervals found using frame_length=2048, hop_length=1024, threshold=35.
-            864 intervals found using frame_length=4096, hop_length=2048, threshold=30.
-
-        Args:
-            threshold (int): the threshold (in decibels) below reference to consider as silence
-            frame_length (int): the (positive integer) number of samples in an analysis window (or frame)
-            hop_length (int): the number of samples between successive frames, e.g., the columns of a spectrogram
-
-        Returns:
-            np.ndarray: time intervals for start and end of each lecturing chunk, given in SAMPLES
-        """
-
-        # split the audio into chunks with leading and trialing silence
-        intervals = self.split_on_silence(threshold, hop_length, frame_length)
-
-        # print the number of intervals and the args used
-        # print('{} intervals found using frame_length={}, hop_length={}, threshold={}.'
-        #       .format(len(intervals), frame_length, hop_length, threshold))
-
-        # for each chunk, trim the leading and trailing silence using the given threshold
-        new_intervals = self.trim_chunks(intervals, threshold)
-
-        return new_intervals
-
-    def trim_chunks(self, intervals, threshold):
-        """
-        Trims the leading and trailing silence off each chunk of audio
-
-        Args:
-            intervals (np.ndarray): time intervals for start and end of each lecturing chunk, given in SAMPLES
-            threshold (int): the threshold (in decibels) below reference to consider as silence
-
-        Return:
-            np.ndarray: time intervals for start and end of each lecturing chunk, given in SAMPLES
-        """
 
         # for each chunk, trim the leading and trailing silence using the given threshold
         for j in range(0, len(intervals)):
@@ -183,8 +153,187 @@ class LectureAudio:
             intervals[j][0] += index[0]
             intervals[j][1] = intervals[j][0] + index[1]
 
-        return intervals
+        # ignore pauses less than the max pause length
+        i = 0
 
+        # empty list so we don't have to append an array over and over again (saves memory)
+        new_intervals = []
+
+        # add the leading silence to the lecture time if it is less than the pause length
+        if intervals[0][0] <= pause and intervals[0][0] != 0:
+            new_intervals.append(np.array([0, intervals[0][0]]))
+
+        for i in range(0, len(intervals) - 1):
+            speech_interval = intervals[i]
+            pause_beginning = speech_interval[1]
+            pause_end = intervals[i + 1][0]
+
+            # add each old interval to the list
+            new_intervals.append(speech_interval)
+
+            # if the pause between an interval is less than the maximum, assume its still lecture
+            if (pause_end - pause_beginning) / self.sr <= pause:
+                new_intervals.append(np.array([pause_beginning, pause_end]))
+
+        # add the last interval to the new list
+        last_interval = intervals[len(intervals) - 1]
+        new_intervals.append(last_interval)  # list must hold times in SAMPLES not SECONDS
+
+        # add the trailing silence to the lecture time if its less than the pause length
+        last_interval_end = last_interval[1]  # in samples
+        audio_end = librosa.get_duration(self.trimmed_audio)  # in seconds
+        audio_end_samples = audio_end * self.sr  # in samples
+        if audio_end - (last_interval_end / self.sr) <= pause:
+            new_intervals.append(np.array([last_interval_end, audio_end_samples]))
+            # list must hold times in SAMPLES not SECONDS
+
+        return np.array(new_intervals)
+
+    # IMPORTANT: STUDENT INTERVALS MUST BE GIVEN, NOT ALL INTERVALS
+    def count_time_spent(self, professor_intervals, student_intervals=None):
+        """
+        Finds the percent of audio remaining after trailing and leading silences were removed
+        Finds percent of audio that is lecture vs. silence
+
+        Args:
+            professor_intervals (np.ndarray): time intervals for start and end of each lecturing chunk, given in SAMPLES
+            all_talking_intervals (np.ndarray): time intervals for start and end of each talking chunk, given in SAMPLES
+
+        Returns:
+            float: the percent of time trimmed away from the beginning and end of the audio
+            float: the SECONDS spent in lecture
+            float: the length of the trimmed audio in SECONDS
+            np.ndarray: time intervals for start and end of each lecturing chunk, given in SAMPLES, with pauses ignored
+        """
+
+        # find the percent of the original file that was trimmed off as leading or trailing silence
+        prev_dur = librosa.get_duration(self.audio_arr)
+        new_dur = librosa.get_duration(self.trimmed_audio)
+        percent_trimmed = 100 - ((new_dur / prev_dur) * 100)
+
+        # add up all the time spent in lecture
+        professor_talking = 0  # total time in SECONDS
+        for label in professor_intervals:
+            professor_talking += (label[1] - label[0]) / self.sr
+
+        student_talking = 0  # total time in SECONDS
+        if student_intervals is not None:
+            for label in student_intervals:
+                student_talking += (label[1] - label[0]) / self.sr
+
+        return percent_trimmed, professor_talking, student_talking, new_dur
+
+    def analyze_words(self):
+        """
+        Finds the number of words and array of words spoken in audio
+
+        Returns:
+            int: number of words spoken in lecture
+            int: average number of syllables per word
+            string: the grade level using the New Dale-Chall Formula
+        """
+
+        with open('s3/{}'.format(self.transcript_filename), 'r') as myfile:
+            data = myfile.read()
+
+        num_words = lexicon_count(data, removepunct=True)
+        num_syllables = syllable_count(data, lang='en_US')
+
+        grade_level = dale_chall_readability_score(data)
+
+        if grade_level < 5:
+            grade_level_string = 'average 4th-grade student or lower'
+        elif grade_level < 6:
+            grade_level_string = 'average 5th or 6th-grade student'
+        elif grade_level < 7:
+            grade_level_string = 'average 7th or 8th-grade student'
+        elif grade_level < 8:
+            grade_level_string = 'average 9th or 10th-grade student'
+        elif grade_level < 9:
+            grade_level_string = 'average 11th or 12th-grade student'
+        elif grade_level < 10:
+            grade_level_string = 'average 13th to 15th-grade (college) student'
+        else:
+            grade_level_string = 'above average college student'
+
+        return num_words, num_syllables / num_words, grade_level_string
+
+    def integrate_interval_sets(self, professor_intervals, all_intervals=None):
+        print(professor_intervals)
+        print(all_intervals)
+
+        # FIX MEEEEEEE
+        student_intervals = all_intervals
+
+        return professor_intervals, student_intervals
+
+    # TEST
+    def full_analysis(self, threshold_all, threshold_lecture, hop_length, frame_length, pause_length):
+        """
+        Analyzes the audio and returns helpful data
+
+        Args:
+            pause_length (int): the max length of silence to be ignored (grouped with lecture), given in SECONDS
+            threshold_all (int): the threshold (in decibels) below reference to consider as silence
+            threshold_lecture (int): the threshold (in decibels) below reference to consider as silence or class
+            hop_length (int): the number of samples between successive frames, e.g., the columns of a spectrogram
+            frame_length (int): the (positive integer) number of samples in an analysis window (or frame)
+
+        Returns:
+            float: the percent of time trimmed away from the beginning and end of the audio
+            float: the percent of time spent in lecture as compared to the entire trimmed audio
+            float: the amount of time spent with students or professor talking, given in SECONDS
+            float: the duration of the total audio, with leading and trailing silences trimmed, given in SECONDS
+            int: the total number of words spoken in lecture
+            int: the average syllables per word spoken in lecture
+            string: description of the grade level of the transcription
+            float: the amount of words spoken per minute of lecture
+            float: the amount of words spoken per second of lecture
+            np.ndarray: the time intervals where students are talking
+            np.ndarray: the time intervals where the professor is talking
+        """
+
+        # outputs time intervals for start and end of each speech chunk (includes students)
+        intervals_all = self.split_on_silence(threshold=threshold_all, hop_length=hop_length, frame_length=frame_length, pause=pause_length)
+
+        # outputs time intervals for start and end of each lecturing chunk
+        lecture_intervals = self.split_on_silence(threshold=threshold_lecture, hop_length=hop_length, frame_length=frame_length, pause=pause_length)
+
+        lecture_intervals, student_intervals = self.integrate_interval_sets(lecture_intervals, intervals_all)
+
+        # find the percent silence removed and percent of lecture spent talking
+        percent_trimmed, professor_talking, student_talking, new_dur = lecture.count_time_spent(lecture_intervals, student_intervals)
+
+        # FIX ME! Here we need to create one big label set for both student and professor intervals
+
+        num_words, num_syllables, grade_level = lecture.analyze_words()
+
+        words_per_second = num_words / professor_talking
+        words_per_minute = words_per_second * 60
+
+        response = {"percent_leading_trailing_silence_trimmed": percent_trimmed,
+                    "student_talking_time": student_talking,
+                    "professor_talking_time": professor_talking,
+                    "class_duration": new_dur,
+                    "words_spoken": num_words,
+                    "average_syllables_per_word": num_syllables,
+                    "grade_level": grade_level,
+                    "words_per_minute": words_per_minute,
+                    "words_per_second": words_per_second,
+                    "all_labels": [
+                        # FIX MEEEEE! do this dynamically
+                        {"start": 0.09287981859410431, "end": 0.3250793650793651, "label": "student"},
+                        {"start": 0.3250793650793651, "end": 4.4117913832199545, "label": "professor"},
+                        {"start": 200.38820861678005, "end": 214.1907029478458, "label": "professor"}
+                    ]
+                    }
+
+        # convert into JSON:
+        response = json.dumps(response)
+
+        return percent_trimmed, student_talking, professor_talking, new_dur, num_words, num_syllables, grade_level, words_per_minute, words_per_second, student_intervals, lecture_intervals
+
+    # eventually we want to do this as the last step, once we have both student and professor intervals
     def create_labels(self, intervals, threshold, i=None):
         """
         Creates a txt file that can be imported as labels to Audacity
@@ -201,12 +350,12 @@ class LectureAudio:
 
         # if no number was given, just name the file normally
         if i is None:
-            filename = '{}_labels_{}.txt'.format(self.base_filename, threshold)
+            filename = '{}_labels_{}.txt'.format(remove_file_type(self.original_audio_filename), threshold)
 
         # otherwise, add the number to the end of the file name
         # this is used when multiple tests are being run on the same audio file
         else:
-            filename = '{}_labels_{}_{}.txt'.format(self.base_filename, threshold, i)
+            filename = '{}_labels_{}_{}.txt'.format(remove_file_type(self.original_audio_filename), threshold, i)
 
         # open the file to make sure we create it if it isn't there
         f = open(filename, "w+")
@@ -221,6 +370,7 @@ class LectureAudio:
         return new_intervals
 
     # make max_length variable available in parameters?
+    # can we make this a part of create_labels? Or even remove it and complete this BEFORE making labels
     def glob_labels(self, intervals):
         """
         Combines intervals that are directly adjacent (makes labels more readable in Audacity
@@ -283,314 +433,6 @@ class LectureAudio:
             f.write("{}\t{}\t{}\n".format(start, end, label))
             f.close()
 
-    def ignore_silence(self, intervals, pause):
-        """
-        Ignore silences that last less than the maximum pause length given
-
-        Args:
-            intervals (np.ndarray): time intervals for start and end of each lecturing chunk, given in SAMPLES
-            pause (int): maximum length of silence still considered as lecturing, given in SECONDS
-
-        Returns:
-            np.ndarray: time intervals for start and end of each lecturing chunk, pauses ignored, given in SAMPLES
-        """
-
-        i = 0
-
-        # empty list so we don't have to append an array over and over again (saves memory)
-        new_intervals = []
-
-        # add the leading silence to the lecture time if it is less than the pause length
-        if intervals[0][0] <= pause and intervals[0][0] != 0:
-            new_intervals.append(np.array([0, intervals[0][0]]))
-
-        for i in range(0, len(intervals) - 1):
-            speech_interval = intervals[i]
-            pause_beginning = speech_interval[1]
-            pause_end = intervals[i + 1][0]
-
-            # add each old interval to the list
-            new_intervals.append(speech_interval)
-
-            # if the pause between an interval is less than the maximum, assume its still lecture
-            if (pause_end - pause_beginning) / self.sr <= pause:
-                new_intervals.append(np.array([pause_beginning, pause_end]))
-
-        # add the last interval to the new list
-        last_interval = intervals[len(intervals) - 1]
-        new_intervals.append(last_interval)  # list must hold times in SAMPLES not SECONDS
-
-        # add the trailing silence to the lecture time if its less than the pause length
-        last_interval_end = last_interval[1]  # in samples
-        audio_end = librosa.get_duration(self.trimmed_audio)  # in seconds
-        audio_end_samples = audio_end * self.sr  # in samples
-        if audio_end - (last_interval_end / self.sr) <= pause:
-            new_intervals.append(np.array([last_interval_end, audio_end_samples]))
-            # list must hold times in SAMPLES not SECONDS
-
-        return np.array(new_intervals)
-
-    def save_trimmed_file(self):
-        """
-        Saves the audio with trimmed leading and trailing silence as a wav file
-
-        Returns:
-            string: the name of the trimmed file
-        """
-
-        filename = '{}_trimmed.wav'.format(remove_file_type(self.original_audio_filename))
-        librosa.output.write_wav(filename, self.trimmed_audio, self.sr)
-        print('{} was successfully saved!'.format(filename))
-
-        return filename
-
-    def analyze_audio(self, intervals, pause_length, threshold):
-        """
-        Finds the percent of audio remaining after trailing and leading silences were removed
-        Finds percent of audio that is lecture vs. silence
-
-        Args:
-            intervals (np.ndarray): time intervals for start and end of each lecturing chunk, given in SAMPLES
-            pause_length (int): the max length of silence to be ignored (grouped with lecture), given in SECONDS
-            threshold (int): the threshold (in decibels) below reference to consider as silence
-
-        Returns:
-            float: the percent of time trimmed away from the beginning and end of the audio
-            float: the SECONDS spent in lecture
-            float: the length of the trimmed audio in SECONDS
-            np.ndarray: time intervals for start and end of each lecturing chunk, given in SAMPLES, with pauses ignored
-        """
-
-        # Print the durations
-        prev_dur = librosa.get_duration(self.audio_arr)
-        new_dur = librosa.get_duration(self.trimmed_audio)
-        percent_trimmed = 100 - ((new_dur / prev_dur) * 100)
-
-        talking = 0  # total time in SECONDS
-
-        # count short pauses as lecture
-        adjusted_intervals = self.ignore_silence(intervals, pause_length)
-
-        # save a txt file with the labels
-        final_intervals = self.create_labels(adjusted_intervals, threshold)
-
-        # add up all the time spent in lecture
-        for label in adjusted_intervals:
-            talking += (label[1] - label[0]) / self.sr
-
-        return percent_trimmed, talking, new_dur, final_intervals
-
-    def analyze_words(self):
-        """
-        Finds the number of words and array of words spoken in audio
-
-        Returns:
-            int: number of words spoken in lecture
-            int: average number of syllables per word
-            string: the grade level using the New Dale-Chall Formula
-        """
-
-        with open(self.transcript_filename, 'r') as myfile:
-            data = myfile.read()
-
-        num_words = lexicon_count(data, removepunct=True)
-        num_syllables = syllable_count(data, lang='en_US')
-
-        # 4.9 or lower	average 4th-grade student or lower
-        # 5.0–5.9	average 5th or 6th-grade student
-        # 6.0–6.9	average 7th or 8th-grade student
-        # 7.0–7.9	average 9th or 10th-grade student
-        # 8.0–8.9	average 11th or 12th-grade student
-        # 9.0–9.9	average 13th to 15th-grade (college) student
-        grade_level = dale_chall_readability_score(data)
-
-        if grade_level < 5:
-            grade_level_string = 'average 4th-grade student or lower'
-        elif grade_level < 6:
-            grade_level_string = 'average 5th or 6th-grade student'
-        elif grade_level < 7:
-            grade_level_string = 'average 7th or 8th-grade student'
-        elif grade_level < 8:
-            grade_level_string = 'average 9th or 10th-grade student'
-        elif grade_level < 9:
-            grade_level_string = 'average 11th or 12th-grade student'
-        elif grade_level < 10:
-            grade_level_string = 'average 13th to 15th-grade (college) student'
-        else:
-            grade_level_string = 'above average college student'
-
-        return num_words, num_syllables / num_words, grade_level_string
-
-    # TEST
-    def full_analysis(self, pause_length, threshold_all, threshold_lecture, hop_length, frame_length):
-        """
-        Analyzes the audio and returns helpful data
-
-        Args:
-            pause_length (int): the max length of silence to be ignored (grouped with lecture), given in SECONDS
-            threshold_all (int): the threshold (in decibels) below reference to consider as silence
-            threshold_lecture (int): the threshold (in decibels) below reference to consider as silence or class
-            hop_length (int): the number of samples between successive frames, e.g., the columns of a spectrogram
-            frame_length (int): the (positive integer) number of samples in an analysis window (or frame)
-
-        Returns:
-            float: the percent of time trimmed away from the beginning and end of the audio
-            float: the percent of time spent in lecture as compared to the entire trimmed audio
-            float: the amount of time spent with students or professor talking, given in SECONDS
-            float: the duration of the total audio, with leading and trailing silences trimmed, given in SECONDS
-            int: the total number of words spoken in lecture
-            int: the average syllables per word spoken in lecture
-            string: description of the grade level of the transcription
-            float: the amount of words spoken per minute of lecture
-            float: the amount of words spoken per second of lecture
-            np.ndarray: the time intervals where students are talking
-            np.ndarray: the time intervals where the professor is talking
-        """
-
-        # outputs time intervals for start and end of each speech chunk (includes students)
-        intervals_all = self.final_split(threshold=threshold_all, hop_length=hop_length, frame_length=frame_length)
-
-        # find the percent silence removed and percent of lecture spent talking
-        # save label .txt file(s)
-        # ignore pauses of pause_length number of SECONDS
-        _, total_speech, _, all_final_intervals = lecture.analyze_audio(intervals_all, pause_length, threshold_all)
-
-        # each lecture chunk is more or less included in the set of speech chunks
-
-        # outputs time intervals for start and end of each lecturing chunk
-        intervals = self.final_split(threshold=threshold_lecture, hop_length=hop_length, frame_length=frame_length)
-
-        # find the percent silence removed and percent of lecture spent talking
-        # save label .txt file(s)
-        # ignore pauses of pause_length number of SECONDS
-        percent_trimmed, talking, new_dur, final_intervals = lecture.analyze_audio(intervals, pause_length,
-                                                                                   threshold_lecture)
-
-        # save a txt file with student participation labels
-        student_intervals = self.get_student_intervals(final_intervals, all_final_intervals)
-
-        self.create_labels(student_intervals, 'student')
-
-        num_words, num_syllables, grade_level = lecture.analyze_words()
-
-        print('\nRemoved {:0.2f}% of the audio as leading or trailing silence.\n'.format(percent_trimmed))
-
-        # calculate the perent time spent in lecture
-        percent_talking = (talking / new_dur) * 100
-
-        if talking < total_speech:
-            student_participation = total_speech - talking
-        else:
-            student_participation = 0
-
-        percent_student = (student_participation / new_dur) * 100
-
-        print('Of the remaining audio, '
-              '{:0.2f}% was lecture, '
-              '{:0.2f}% was student participation, '
-              'and {:0.2f}% was silence.'.format(percent_talking, percent_student,
-                                                 100 - percent_talking - percent_student))
-
-        lecture_time = str(datetime.timedelta(hours=new_dur/60/60))
-        talking_time = str(datetime.timedelta(hours=talking/60/60))
-        student_time = str(datetime.timedelta(hours=student_participation/60/60))
-
-        print('Of the {} of lecture, you spent {} talking, and the class spent {} talking.\n'.format(lecture_time,
-                                                                                                     talking_time,
-                                                                                                     student_time))
-
-        print('Words: {}\nAverage syllables per word: {:0.2f}\nTranscript grade level: {}\n'.format(num_words,
-                                                                                                    num_syllables,
-                                                                                                    grade_level))
-        # would it be more accurate to use talking time instead of total duration?
-        words_per_second = num_words / talking
-        words_per_minute = words_per_second * 60
-        print("Words per minute: {:0.2f}".format(words_per_minute))
-        print('That\'s about {:0.2f} words per second!'.format(words_per_second))
-
-        if words_per_minute < 120:
-            print("That is considered a slower-than-average speech rate.")
-        elif words_per_minute < 200:
-            print("That is considered a normal conversational speech rate.")
-        else:
-            print("That is considered a faster_than_average speech rate.")
-
-        return percent_trimmed, percent_talking, talking, new_dur, num_words, num_syllables, grade_level, words_per_minute, words_per_second, student_intervals, final_intervals
-
-    @staticmethod
-    def get_student_intervals(lecture_intervals, all_intervals):
-        """
-        determines the intervals of student participation
-
-        Args:
-            lecture_intervals (np.ndarray): the intervals for lecture
-            all_intervals (np.ndarray): the intervals for all talking in lecture
-
-        Returns:
-            np.ndarray: the intervals for student participation in lecture
-        """
-
-        label_list = []
-
-        for chunk in all_intervals:  # 35 dbs
-            lectures_found = 0
-            for i in range(0, len(lecture_intervals)):  # 20 dbs
-
-                lecture = lecture_intervals[i]
-
-                if chunk[1] > lecture[1] >= chunk[0]:
-
-                    if lectures_found == 0 and lecture[0] > chunk[0]:
-                        label_list.append(np.array([chunk[0], lecture[0]]))
-                        lectures_found +=1
-
-                    lectures_found += 1
-                    start = lecture[1]
-                    lecture_end = lecture_intervals[i+1][0]
-                    chunk_end = chunk[1]
-                    if chunk_end < lecture_end:
-                        label_list.append(np.array([start, chunk_end]))
-                    else:
-                        label_list.append(np.array([start, lecture_end]))
-                elif lecture[1] == lecture_intervals[len(lecture_intervals) - 1][1] and chunk[1] == lecture[1]:
-                    start = lecture_intervals[len(lecture_intervals) - 2][1]
-                    end = lecture[0]
-                    if chunk[0] > end:
-                        label_list.append(np.array([start, chunk[0]]))
-                    else:
-                        label_list.append(np.array([start, end]))
-                    lectures_found += 1
-
-            if lectures_found == 0:
-                label_list.append(chunk)
-
-        return np.array(label_list)
-
-    def set_db_levels(self, pause_length, threshold_all=35, threshold_lecture=20, hop_length=2048, frame_length=1024):
-        # outputs time intervals for start and end of each speech chunk (includes students)
-        intervals_all = self.final_split(threshold=threshold_all, hop_length=hop_length, frame_length=frame_length)
-
-        # find the percent silence removed and percent of lecture spent talking
-        # save label .txt file(s)
-        # ignore pauses of pause_length number of SECONDS
-        _, total_speech, _, _ = lecture.analyze_audio(intervals_all, pause_length, threshold_all)
-
-        # each lecture chunk is more or less included in the set of speech chunks
-
-        # outputs time intervals for start and end of each lecturing chunk
-        intervals = self.final_split(threshold=threshold_lecture, hop_length=hop_length, frame_length=frame_length)
-
-        # save a txt file with student participation labels
-        student_intervals = self.get_student_intervals(intervals, intervals_all)
-
-        self.create_labels(student_intervals, 'student')
-
-        # find the percent silence removed and percent of lecture spent talking
-        # save label .txt file(s)
-        # ignore pauses of pause_length number of SECONDS
-        percent_trimmed, talking, new_dur, final_intervals = lecture.analyze_audio(intervals, pause_length,
-                                                                                   threshold_lecture)
-
 
 if __name__ == '__main__':
 
@@ -600,34 +442,21 @@ if __name__ == '__main__':
 
     # create an instance of the LectureAudio class
     # extract audio info from wav file and trim leading and trailing silence
-    lecture = LectureAudio(audio_file, transcript_file)
+    lecture = LectureAudio(audio_file, transcript_file, download_needed=False)
 
-    lecture.get_silence_threshold()
+    # lecture.get_silence_threshold()
 
     # # create an instance of the LectureAudio class
     # # only load first 1200 seconds to make tests run faster
     # lecture = LectureAudio(audio_file, duration=1200)
 
-    # # run and analyze this test if unsure what params will work best for final split
-    # frame_lengths = [1024]
-    # hop_lengths = [2048]
-    # thresholds = [30, 10]
-    # lecture.test_splits(frame_lengths, hop_lengths, thresholds)
+    threshold_all = 35
+    threshold_lecture = 30
+    hop_length = 1024
+    frame_length = 2048
+    pause_length = 2
 
-    # threshold = 10
-    # hop_length = 2048
-    # frame_length = 1024
-    # pause_length = 2
-    #
-    # lecture.full_analysis(pause_length, threshold, hop_length, frame_length)
-
-    # threshold_all = 35
-    # threshold_lecture = 20
-    # hop_length = 2048
-    # frame_length = 1024
-    # pause_length = 2
-    #
-    # lecture.full_analysis(pause_length, threshold_all, threshold_lecture, hop_length, frame_length)
+    lecture.full_analysis(threshold_all, threshold_lecture, hop_length, frame_length, pause_length)
 
 
 # THINGS TO BE AWARE OF
