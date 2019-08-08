@@ -389,6 +389,25 @@ class LectureAudio:
         label_list.append(intervals[len(intervals) - 1])
 
         return np.array(label_list)
+    
+    # FINISH MEEEEEE
+    def ingore_short_student_intervals(intervals, pause_length):
+        for i in range(1, len(intervals) - 1):
+            chunk = intervals[i]
+            next_chunk = intervals[i+1]
+            if (chunk[2] == 2) and (chunk[1] - chunk[0] < pause_length):
+                if i > 0:
+                    prev_chunk = intervals[i-1]
+                    if (prev_chunk[2] == 1) and (prev_chunk[1] == chunk[0]):
+                        intervals[i, 2] = 1
+                if i < len(intervals)
+                elif (next_chunk[2] == 1) and (next_chunk[0] == chunk[1]):
+                    intervals[i, 2] = 1
+
+        chunk = intervals[0]
+        next_chunk = intervals[1]
+
+        return intervals
 
 
     # TEST
