@@ -368,11 +368,27 @@ class LectureAudio:
 
         return np.array(label_list)
 
-    # FINISH MEEEEEEEEEEE
+    # TEST MEEEEEEEEEEE
     @staticmethod
-    def fill_in_label_gaps(intervals):
-        for i in range(0, len(intervals)):
+    def fill_in_label_gaps(intervals, pause_length):
+        label_list = []
+
+        for i in range(0, len(intervals) - 1):
             chunk = intervals[i]
+            next_chunk = intervals[i+1]
+            if (next_chunk[0] - chunk[1] < pause_length) and (next_chunk[0] - chunk[1] != 0):
+                if chunk[2] == next_chunk[2]:
+                    new_chunk = [chunk[1], next_chunk[0], chunk[2]]
+                    label_list.extend([chunk, new_chunk])
+                else:
+                    new_chunk = [chunk[1], next_chunk[0], 1]
+                    label_list.extend([chunk, new_chunk])
+            else:
+                label_list.append(chunk)
+
+        label_list.append(intervals[len(intervals) - 1])
+
+        return np.array(label_list)
 
 
     # TEST
