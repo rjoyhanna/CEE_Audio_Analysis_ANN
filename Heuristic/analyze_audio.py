@@ -391,6 +391,7 @@ class LectureAudio:
         return np.array(label_list)
     
     # TEST MEEEEEE
+    @staticmethod
     def ingore_short_student_intervals(intervals, pause_length):
         for i in range(0, len(intervals)):
             chunk = intervals[i]
@@ -408,6 +409,44 @@ class LectureAudio:
         next_chunk = intervals[1]
 
         return intervals
+    
+    # TEST MEEEEEEEEEEEEEE
+    @staticmethod
+    def combine_same_labels(intervals):
+        """
+        Combines intervals that are directly adjacent (makes labels more readable in Audacity
+        Args:
+            intervals (np.ndarray): time intervals for start and end of each lecturing chunk, given in SAMPLES
+        Returns:
+            np.ndarray: simplified intervals
+        """
+
+        # sr = 22050
+
+        label_list = []
+        if len(intervals) > 0:
+            label_start = intervals[0][0]
+
+        # max_length = 20000 * self.sr  # this keeps the intervals at a good length for speech recognition
+
+        for i in range(0, len(intervals) - 1):
+            current_interval = intervals[i]
+            next_interval = intervals[i + 1]
+            # check that the adjacent intervals are connected, and that they have the same label
+            if (next_interval[0] == current_interval[1]) and (current_interval[2] == next_interval[2]):
+                label_end = next_interval[1]  # set new interval end to the end of the next interval
+
+                if i == len(intervals) - 2:
+                    label_list.append(np.array([label_start, label_end, next_interval[2]]))
+
+            else:
+                label_list.append(np.array([label_start, current_interval[1], current_interval[2]]))
+                label_start = next_interval[0]
+
+                if i == len(intervals) - 2:
+                    label_list.append(next_interval)
+
+        return np.array(label_list)
 
 
     # TEST
@@ -504,55 +543,11 @@ class LectureAudio:
         f = open(filename, "w+")
         f.close()
 
-        new_intervals = self.glob_labels(intervals)
-
         # add a label for each interval
-        for row in new_intervals:
-            self.add_label_row(filename, row[0] / self.sr, row[1] / self.sr, 1)
+        for row in intervals:
+            self.add_label_row(filename, row[0] / self.sr, row[1] / self.sr, row[2])
 
-        return new_intervals
-
-    # make max_length variable available in parameters?
-    # can we make this a part of create_labels? Or even remove it and complete this BEFORE making labels
-    def glob_labels(self, intervals):
-        """
-        Combines intervals that are directly adjacent (makes labels more readable in Audacity
-
-        Args:
-            intervals (np.ndarray): time intervals for start and end of each lecturing chunk, given in SAMPLES
-
-        Returns:
-            np.ndarray: simplified intervals
-        """
-
-        label_list = []
-        if len(intervals) > 0:
-            label_start = intervals[0][0]
-        # label_end = intervals[0][1]
-
-        max_length = 20000 * self.sr  # this keeps the intervals at a good length for speech recognition
-
-        for i in range(0, len(intervals) - 1):
-            current_interval = intervals[i]
-            next_interval = intervals[i + 1]
-            if next_interval[0] == current_interval[1]:
-                future_length = next_interval[1] - label_start
-                if future_length >= max_length:
-                    label_end = current_interval[1]  # set new interval end to the end of the current interval
-                    label_list.append(np.array([label_start, label_end]))
-                    label_start = next_interval[0]
-                else:
-                    label_end = next_interval[1]  # set new interval end to the end of the next interval
-
-                    if i == len(intervals) - 2:
-                        label_list.append(np.array([label_start, label_end]))
-
-            else:
-                label_end = current_interval[1]  # set new interval end to the end of the current interval
-                label_list.append(np.array([label_start, label_end]))
-                label_start = next_interval[0]
-
-        return np.array(label_list)
+        return intervals
 
     @staticmethod
     def add_label_row(filename, start, end, label):
