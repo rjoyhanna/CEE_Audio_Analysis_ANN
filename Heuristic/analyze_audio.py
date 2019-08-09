@@ -427,27 +427,57 @@ class LectureAudio:
         if len(intervals) > 0:
             label_start = intervals[0][0]
 
-        # max_length = 20000 * self.sr  # this keeps the intervals at a good length for speech recognition
+            # max_length = 20000 * self.sr  # this keeps the intervals at a good length for speech recognition
 
-        for i in range(0, len(intervals) - 1):
-            current_interval = intervals[i]
-            next_interval = intervals[i + 1]
-            # check that the adjacent intervals are connected, and that they have the same label
-            if (next_interval[0] == current_interval[1]) and (current_interval[2] == next_interval[2]):
-                label_end = next_interval[1]  # set new interval end to the end of the next interval
+            for i in range(0, len(intervals) - 1):
+                current_interval = intervals[i]
+                next_interval = intervals[i + 1]
+                # check that the adjacent intervals are connected, and that they have the same label
+                if (next_interval[0] == current_interval[1]) and (current_interval[2] == next_interval[2]):
+                    label_end = next_interval[1]  # set new interval end to the end of the next interval
 
-                if i == len(intervals) - 2:
-                    label_list.append(np.array([label_start, label_end, next_interval[2]]))
+                    if i == len(intervals) - 2:
+                        label_list.append(np.array([label_start, label_end, next_interval[2]]))
 
-            else:
-                label_list.append(np.array([label_start, current_interval[1], current_interval[2]]))
-                label_start = next_interval[0]
+                else:
+                    label_list.append(np.array([label_start, current_interval[1], current_interval[2]]))
+                    label_start = next_interval[0]
 
-                if i == len(intervals) - 2:
-                    label_list.append(next_interval)
+                    if i == len(intervals) - 2:
+                        label_list.append(next_interval)
 
         return np.array(label_list)
 
+    # TEST MEEEEEEEEEEEEE
+    @staticmethod
+    def ignore_short_intervals(intervals, min_time):
+        label_list = []
+
+        for i in range(0, len(intervals)):
+            chunk = intervals[i]
+            if chunk[1] - chunk[0] > min_time:
+                label_list.append(chunk)
+
+        return np.array(label_list)
+
+    # TEST MEEEEEEEEEE
+    @staticmethod
+    def add_silent_labels(intervals):
+        label_list = []
+
+        for i in range(0, len(intervals) - 1):
+            chunk = intervals[i]
+            next_chunk = intervals[i + 1]
+
+            if chunk[1] == next_chunk[0]:
+                label_list.append(chunk)
+            else:
+                new_chunk = np.array([chunk[1], next_chunk[0], 0])
+                label_list.extend([chunk, new_chunk])
+            if i == len(intervals) - 2:
+                label_list.append(next_chunk)
+
+        return np.array(label_list)
 
     # TEST
     def full_analysis(self, threshold_all, threshold_lecture, hop_length, frame_length, pause_length):
