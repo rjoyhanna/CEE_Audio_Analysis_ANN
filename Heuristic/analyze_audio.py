@@ -70,14 +70,14 @@ class LectureAudio:
         self.trimmed_offset = index[0]
 
         self.trimmed_filename = '{}_trimmed.wav'.format(remove_file_type(self.original_audio_filename))
-        librosa.output.write_wav(filename, self.trimmed_audio, self.sr)
-        print('{} was successfully saved!'.format(filename))
+        librosa.output.write_wav(self.trimmed_filename, self.trimmed_audio, self.sr)
+        print('{} was successfully saved!'.format(self.trimmed_filename))
 
         # save the new trimmed wav file to the s3 bucket
         if download_needed:
             self.file_handler.upload_file(self.trimmed_filename)
 
-        self.silence_threshold = self.get_silence_threshold()
+        # self.silence_threshold = self.get_silence_threshold()
 
     def trim_ends(self, verbose=False):
         """
@@ -114,7 +114,7 @@ class LectureAudio:
 
         for threshold in [20, 25, 30, 35, 40]:
             intervals = self.split_on_silence(threshold, hop_length, frame_length, pause_length)
-            self.create_labels(intervals, str(threshold), i)
+            self.create_labels(intervals, i)
             i += 1
 
         # print('{}, {}, {}, {}'.format(mean, max, min, std))
@@ -190,7 +190,7 @@ class LectureAudio:
         return np.array(new_intervals)
 
     # IMPORTANT: STUDENT INTERVALS MUST BE GIVEN, NOT ALL INTERVALS
-    def count_time_spent(self, professor_intervals, student_intervals=None):
+    def count_time_spent(self, intervals):
         """
         Finds the percent of audio remaining after trailing and leading silences were removed
         Finds percent of audio that is lecture vs. silence
@@ -213,15 +213,17 @@ class LectureAudio:
 
         # add up all the time spent in lecture
         professor_talking = 0  # total time in SECONDS
-        for label in professor_intervals:
-            professor_talking += (label[1] - label[0]) / self.sr
-
-        student_talking = 0  # total time in SECONDS
-        if student_intervals is not None:
-            for label in student_intervals:
+        student_talking = 0
+        silence = 0
+        for label in intervals:
+            if label[2] == 1:
+                professor_talking += (label[1] - label[0]) / self.sr
+            elif label[2] == 0:
+                silence += (label[1] - label[0]) / self.sr
+            elif label[2] == 2:
                 student_talking += (label[1] - label[0]) / self.sr
 
-        return percent_trimmed, professor_talking, student_talking, new_dur
+        return percent_trimmed, professor_talking, student_talking, silence, new_dur
 
     def analyze_words(self):
         """
@@ -263,6 +265,7 @@ class LectureAudio:
             all_intervals = np.array([])
 
         student_intervals = self.get_student_intervals(professor_intervals, all_intervals)
+
         # all_intervals has 3 values for each chunk: start, end, label
         # labels:
         # 0 is silence
@@ -270,7 +273,7 @@ class LectureAudio:
         # 2 is student
         all_intervals = self.combine_interval_sets(professor_intervals, student_intervals)
 
-        return professor_intervals, student_intervals
+        return all_intervals
 
     @staticmethod
     def get_student_intervals(lecture_intervals, all_intervals):
@@ -286,41 +289,50 @@ class LectureAudio:
         """
 
         label_list = []
+        used = 0
 
-        for chunk in all_intervals:  # 35 dbs
-            lectures_found = 0
-            for i in range(0, len(lecture_intervals)):  # 20 dbs
+        # find the next professor end (skip adjacent labels)
+        # check if the all ConnectionRefusedError
 
-                lecture = lecture_intervals[i]
+        for i in range(0, len(lecture_intervals)):
+            lecture_chunk = lecture_intervals[i]
 
-                if chunk[1] > lecture[1] >= chunk[0]:
+            if i < len(lecture_intervals) - 1:
+                next_lecture_chunk = lecture_intervals[i + 1]
+            else:
+                next_lecture_chunk = np.array([math.inf, math.inf])
 
-                    if lectures_found == 0 and lecture[0] > chunk[0]:
-                        label_list.append(np.array([chunk[0], lecture[0]]))
-                        lectures_found += 1
+            if lecture_chunk[1] == next_lecture_chunk[0]:
+                continue
 
-                    lectures_found += 1
-                    start = lecture[1]
-                    lecture_end = lecture_intervals[i + 1][0]
-                    chunk_end = chunk[1]
-                    if chunk_end < lecture_end:
-                        label_list.append(np.array([start, chunk_end]))
+            student_start = lecture_chunk[1]
+            student_end = next_lecture_chunk[0]
+
+            # print('\nstudent: [{} {}]'.format(student_start, student_end))
+
+            for j in range(used, len(all_intervals)):
+                all_chunk = all_intervals[j]
+                # print('all: {}'.format(all_chunk))
+
+                if (student_end >= all_chunk[1] > student_start):
+                    label_list.append(np.array([student_start, all_chunk[1]]))
+
+                if student_start < all_chunk[0]:
+                    student_start = all_chunk[0]
+
+                elif (student_end <= all_chunk[1]) and (student_start >= all_chunk[0]):
+                    if (student_end != math.inf):
+                        label_list.append(np.array([student_start, student_end]))
                     else:
-                        label_list.append(np.array([start, lecture_end]))
-                elif lecture[1] == lecture_intervals[len(lecture_intervals) - 1][1] and chunk[1] == lecture[1]:
-                    start = lecture_intervals[len(lecture_intervals) - 2][1]
-                    end = lecture[0]
-                    if chunk[0] > end:
-                        label_list.append(np.array([start, chunk[0]]))
-                    else:
-                        label_list.append(np.array([start, end]))
-                    lectures_found += 1
+                        label_list.append(np.array([student_start, all_chunk[1]]))
 
-            if lectures_found == 0:
-                label_list.append(chunk)
+                elif student_end < all_chunk[1]:
+                    used = j
+                    break
 
         return np.array(label_list)
 
+    # WORKS
     @staticmethod
     def combine_interval_sets(lecture_intervals, student_intervals):
         label_list = []
@@ -359,10 +371,10 @@ class LectureAudio:
                 label_list.append(student_chunk)
                 j += 1
 
-            if (i == len(lecture_intervals)):
+            if i == len(lecture_intervals):
                 i = -1
                 lecture_intervals_finished = True
-            elif (j == len(student_intervals)):
+            elif j == len(student_intervals):
                 j = -1
                 student_intervals_finished = True
 
@@ -392,7 +404,7 @@ class LectureAudio:
     
     # TEST MEEEEEE
     @staticmethod
-    def ingore_short_student_intervals(intervals, pause_length):
+    def ignore_short_student_intervals(intervals, pause_length):
         for i in range(0, len(intervals)):
             chunk = intervals[i]
             if (chunk[2] == 2) and (chunk[1] - chunk[0] < pause_length):
@@ -480,7 +492,7 @@ class LectureAudio:
         return np.array(label_list)
 
     # TEST
-    def full_analysis(self, threshold_all, threshold_lecture, hop_length, frame_length, pause_length):
+    def full_analysis(self, threshold_all, threshold_lecture, hop_length, frame_length, pause_length, min_time):
         """
         Analyzes the audio and returns helpful data
 
@@ -511,12 +523,21 @@ class LectureAudio:
         # outputs time intervals for start and end of each lecturing chunk
         lecture_intervals = self.split_on_silence(threshold=threshold_lecture, hop_length=hop_length, frame_length=frame_length, pause=pause_length)
 
-        lecture_intervals, student_intervals = self.integrate_interval_sets(lecture_intervals, intervals_all)
+        intervals = self.integrate_interval_sets(lecture_intervals, intervals_all)
+        self.create_labels(intervals, 1)
+        intervals = self.fill_in_label_gaps(intervals, pause_length)
+        self.create_labels(intervals, 2)
+        intervals = self.ignore_short_student_intervals(intervals, min_time)
+        self.create_labels(intervals, 3)
+        intervals = self.combine_same_labels(intervals)
+        self.create_labels(intervals, 4)
+        intervals = self.ignore_short_intervals(intervals, min_time)
+        self.create_labels(intervals, 5)
+        intervals = self.add_silent_labels(intervals)
+        self.create_labels(intervals, 6)
 
         # find the percent silence removed and percent of lecture spent talking
-        percent_trimmed, professor_talking, student_talking, new_dur = lecture.count_time_spent(lecture_intervals, student_intervals)
-
-        # FIX ME! Here we need to create one big label set for both student and professor intervals
+        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
 
         num_words, num_syllables, grade_level = lecture.analyze_words()
 
@@ -526,6 +547,7 @@ class LectureAudio:
         response = {"percent_leading_trailing_silence_trimmed": percent_trimmed,
                     "student_talking_time": student_talking,
                     "professor_talking_time": professor_talking,
+                    "silence_time": silence,
                     "class_duration": new_dur,
                     "words_spoken": num_words,
                     "average_syllables_per_word": num_syllables,
@@ -543,10 +565,10 @@ class LectureAudio:
         # convert into JSON:
         response = json.dumps(response)
 
-        return percent_trimmed, student_talking, professor_talking, new_dur, num_words, num_syllables, grade_level, words_per_minute, words_per_second, student_intervals, lecture_intervals
+        return percent_trimmed, student_talking, professor_talking, silence, new_dur, num_words, num_syllables, grade_level, words_per_minute, words_per_second, intervals
 
     # eventually we want to do this as the last step, once we have both student and professor intervals
-    def create_labels(self, intervals, threshold, i=None):
+    def create_labels(self, intervals, i=None):
         """
         Creates a txt file that can be imported as labels to Audacity
         File will have the columns: start, end, label
@@ -562,12 +584,12 @@ class LectureAudio:
 
         # if no number was given, just name the file normally
         if i is None:
-            filename = '{}_labels_{}.txt'.format(remove_file_type(self.original_audio_filename), threshold)
+            filename = '{}_labels.txt'.format(remove_file_type(self.original_audio_filename))
 
         # otherwise, add the number to the end of the file name
         # this is used when multiple tests are being run on the same audio file
         else:
-            filename = '{}_labels_{}_{}.txt'.format(remove_file_type(self.original_audio_filename), threshold, i)
+            filename = '{}_labels_{}.txt'.format(remove_file_type(self.original_audio_filename), i)
 
         # open the file to make sure we create it if it isn't there
         f = open(filename, "w+")
@@ -623,8 +645,9 @@ if __name__ == '__main__':
     hop_length = 1024
     frame_length = 2048
     pause_length = 2
+    min_time = 1
 
-    lecture.full_analysis(threshold_all, threshold_lecture, hop_length, frame_length, pause_length)
+    lecture.full_analysis(threshold_all, threshold_lecture, hop_length, frame_length, pause_length, min_time)
 
 
 # THINGS TO BE AWARE OF
