@@ -121,7 +121,7 @@ class LectureAudio:
 
         return threshold
 
-    def split_on_silence(self, threshold, hop_length, frame_length, pause):
+    def split_on_silence(self, threshold, hop_length, frame_length):
         """
         Splits the audio into intervals of sound with silent beginnings and endings
 
@@ -153,41 +153,41 @@ class LectureAudio:
             intervals[j][0] += index[0]
             intervals[j][1] = intervals[j][0] + index[1]
 
-        # ignore pauses less than the max pause length
-        i = 0
+        # # ignore pauses less than the max pause length
+        # i = 0
+        #
+        # # empty list so we don't have to append an array over and over again (saves memory)
+        # new_intervals = []
+        #
+        # # add the leading silence to the lecture time if it is less than the pause length
+        # if intervals[0][0] <= pause and intervals[0][0] != 0:
+        #     new_intervals.append(np.array([0, intervals[0][0]]))
+        #
+        # for i in range(0, len(intervals) - 1):
+        #     speech_interval = intervals[i]
+        #     pause_beginning = speech_interval[1]
+        #     pause_end = intervals[i + 1][0]
+        #
+        #     # add each old interval to the list
+        #     new_intervals.append(speech_interval)
+        #
+        #     # if the pause between an interval is less than the maximum, assume its still lecture
+        #     if (pause_end - pause_beginning) / self.sr <= pause:
+        #         new_intervals.append(np.array([pause_beginning, pause_end]))
+        #
+        # # add the last interval to the new list
+        # last_interval = intervals[len(intervals) - 1]
+        # new_intervals.append(last_interval)  # list must hold times in SAMPLES not SECONDS
+        #
+        # # add the trailing silence to the lecture time if its less than the pause length
+        # last_interval_end = last_interval[1]  # in samples
+        # audio_end = librosa.get_duration(self.trimmed_audio)  # in seconds
+        # audio_end_samples = audio_end * self.sr  # in samples
+        # if audio_end - (last_interval_end / self.sr) <= pause:
+        #     new_intervals.append(np.array([last_interval_end, audio_end_samples]))
+        #     # list must hold times in SAMPLES not SECONDS
 
-        # empty list so we don't have to append an array over and over again (saves memory)
-        new_intervals = []
-
-        # add the leading silence to the lecture time if it is less than the pause length
-        if intervals[0][0] <= pause and intervals[0][0] != 0:
-            new_intervals.append(np.array([0, intervals[0][0]]))
-
-        for i in range(0, len(intervals) - 1):
-            speech_interval = intervals[i]
-            pause_beginning = speech_interval[1]
-            pause_end = intervals[i + 1][0]
-
-            # add each old interval to the list
-            new_intervals.append(speech_interval)
-
-            # if the pause between an interval is less than the maximum, assume its still lecture
-            if (pause_end - pause_beginning) / self.sr <= pause:
-                new_intervals.append(np.array([pause_beginning, pause_end]))
-
-        # add the last interval to the new list
-        last_interval = intervals[len(intervals) - 1]
-        new_intervals.append(last_interval)  # list must hold times in SAMPLES not SECONDS
-
-        # add the trailing silence to the lecture time if its less than the pause length
-        last_interval_end = last_interval[1]  # in samples
-        audio_end = librosa.get_duration(self.trimmed_audio)  # in seconds
-        audio_end_samples = audio_end * self.sr  # in samples
-        if audio_end - (last_interval_end / self.sr) <= pause:
-            new_intervals.append(np.array([last_interval_end, audio_end_samples]))
-            # list must hold times in SAMPLES not SECONDS
-
-        return np.array(new_intervals)
+        return np.array(intervals)
 
     # IMPORTANT: STUDENT INTERVALS MUST BE GIVEN, NOT ALL INTERVALS
     def count_time_spent(self, intervals):
@@ -381,8 +381,7 @@ class LectureAudio:
         return np.array(label_list)
 
     # TEST MEEEEEEEEEEE
-    @staticmethod
-    def fill_in_label_gaps(intervals, pause_length):
+    def fill_in_label_gaps(self, intervals, pause_length):
         label_list = []
 
         for i in range(0, len(intervals) - 1):
@@ -518,23 +517,41 @@ class LectureAudio:
         """
 
         # outputs time intervals for start and end of each speech chunk (includes students)
-        intervals_all = self.split_on_silence(threshold=threshold_all, hop_length=hop_length, frame_length=frame_length, pause=pause_length)
+        intervals_all = self.split_on_silence(threshold=threshold_all, hop_length=hop_length, frame_length=frame_length)
 
         # outputs time intervals for start and end of each lecturing chunk
-        lecture_intervals = self.split_on_silence(threshold=threshold_lecture, hop_length=hop_length, frame_length=frame_length, pause=pause_length)
+        lecture_intervals = self.split_on_silence(threshold=threshold_lecture, hop_length=hop_length, frame_length=frame_length)
 
         intervals = self.integrate_interval_sets(lecture_intervals, intervals_all)
         self.create_labels(intervals, 1)
-        intervals = self.fill_in_label_gaps(intervals, pause_length)
+        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
+        print('1: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking, silence))
+
+        intervals = self.fill_in_label_gaps(intervals, pause_length * self.sr)
         self.create_labels(intervals, 2)
-        intervals = self.ignore_short_student_intervals(intervals, min_time)
+        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
+        print('2: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking,
+                                                                                 silence))
+        intervals = self.ignore_short_student_intervals(intervals, min_time * self.sr)
         self.create_labels(intervals, 3)
+        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
+        print('3: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking,
+                                                                                 silence))
         intervals = self.combine_same_labels(intervals)
         self.create_labels(intervals, 4)
-        intervals = self.ignore_short_intervals(intervals, min_time)
+        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
+        print('4: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking,
+                                                                                 silence))
+        intervals = self.ignore_short_intervals(intervals, min_time * self.sr)
         self.create_labels(intervals, 5)
+        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
+        print('5: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking,
+                                                                                 silence))
         intervals = self.add_silent_labels(intervals)
         self.create_labels(intervals, 6)
+        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
+        print('6: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking,
+                                                                                 silence))
 
         # find the percent silence removed and percent of lecture spent talking
         percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
