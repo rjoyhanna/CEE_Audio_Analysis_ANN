@@ -80,7 +80,8 @@ transcript_file = 'input_audio_transcript'
 
 # create an instance of the LectureAudio class
 # extract audio info from wav file and trim leading and trailing silence
-lecture = LectureAudio(audio_file, transcript_file)
+# download_needed (boolean) is true if files need to be downloaded from an s3 bucket
+lecture = LectureAudio(audio_file, transcript_file, download_needed=False)
 ```
 
 If the file is really long and you want to speed up testing, select only a limited number of seconds as shown:
@@ -98,31 +99,16 @@ hop_lengths = [1024, 2048]
 thresholds = [30, 35]
 lecture.test_splits(frame_lengths, hop_lengths, thresholds)
 ```
+
 Now that you found the best parameters, run all available tests using the `full_analysis()` method:
 ```python
-threshold = 30
-hop_length = 2048
-frame_length = 1024
+threshold_all = 35
+threshold_lecture = 30
+hop_length = 1024
+frame_length = 2048
 pause_length = 2
+min_time = 1
 
-lecture.full_analysis(pause_length, threshold, hop_length, frame_length)
+lecture.full_analysis(threshold_all, threshold_lecture, hop_length, frame_length, pause_length, min_time)
 ```
 ### If you want to only use specific methods, don't use `full_analysis()`:
-Now that you found the best parameters, you'll want to split the audio into lecture chunks:
-```python
-# outputs time intervals for start and end of each lecturing chunk
-intervals = lecture.final_split(threshold=30, hop_length=2048, frame_length=1024)
-```
-Use analyze_audio() to get the percentage of leading/trailing silence removed from the original file, and the percent of the trimmed audio that is spent lecturing vs silent.
-```python
-# find the percent silence removed and percent of lecture spent talking
-# ignore pauses of pause_length number of SECONDS
-pause_length = 1
-percent_trimmed, percent_talking = lecture.analyze_audio(intervals, pause_length)
-```
-
-For testing output, it may be useful to save the trimmed audio as a `.wav` file. This is because all `.txt` labels that are produced have intervals that relate to the _trimmed_ audio, not the original. You can load this saved `.wav` file and import any of the label `.txt` files to [Audacity](https://www.audacityteam.org/) to see the accuracy  of the analysis.
-```python
-# save a wav file of the audio with leading and trailing silences trimmed
-lecture.save_trimmed_file()
-```
