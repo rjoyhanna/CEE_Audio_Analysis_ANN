@@ -523,35 +523,17 @@ class LectureAudio:
         lecture_intervals = self.split_on_silence(threshold=threshold_lecture, hop_length=hop_length, frame_length=frame_length)
 
         intervals = self.integrate_interval_sets(lecture_intervals, intervals_all)
-        self.create_labels(intervals, 1)
-        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
-        print('1: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking, silence))
 
         intervals = self.fill_in_label_gaps(intervals, pause_length * self.sr)
-        self.create_labels(intervals, 2)
-        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
-        print('2: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking,
-                                                                                 silence))
+
         intervals = self.ignore_short_student_intervals(intervals, min_time * self.sr)
-        self.create_labels(intervals, 3)
-        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
-        print('3: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking,
-                                                                                 silence))
+
         intervals = self.combine_same_labels(intervals)
-        self.create_labels(intervals, 4)
-        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
-        print('4: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking,
-                                                                                 silence))
+
         intervals = self.ignore_short_intervals(intervals, min_time * self.sr)
-        self.create_labels(intervals, 5)
-        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
-        print('5: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking,
-                                                                                 silence))
+
         intervals = self.add_silent_labels(intervals)
-        self.create_labels(intervals, 6)
-        percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
-        print('6: professor talking: {}\tstudent talking: {}\tsilence: {}\n'.format(professor_talking, student_talking,
-                                                                                 silence))
+        self.create_labels(intervals, 1)
 
         # find the percent silence removed and percent of lecture spent talking
         percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
