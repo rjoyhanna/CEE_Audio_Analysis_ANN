@@ -380,8 +380,8 @@ class LectureAudio:
 
         return np.array(label_list)
 
-    # TEST MEEEEEEEEEEE
-    def fill_in_label_gaps(self, intervals, pause_length):
+    @staticmethod
+    def fill_in_label_gaps(intervals, pause_length):
         label_list = []
 
         for i in range(0, len(intervals) - 1):
@@ -401,7 +401,6 @@ class LectureAudio:
 
         return np.array(label_list)
     
-    # TEST MEEEEEE
     @staticmethod
     def ignore_short_student_intervals(intervals, pause_length):
         for i in range(0, len(intervals)):
@@ -421,7 +420,6 @@ class LectureAudio:
 
         return intervals
     
-    # TEST MEEEEEEEEEEEEEE
     @staticmethod
     def combine_same_labels(intervals):
         """
@@ -459,7 +457,6 @@ class LectureAudio:
 
         return np.array(label_list)
 
-    # TEST MEEEEEEEEEEEEE
     @staticmethod
     def ignore_short_intervals(intervals, min_time):
         label_list = []
@@ -471,7 +468,6 @@ class LectureAudio:
 
         return np.array(label_list)
 
-    # TEST MEEEEEEEEEE
     @staticmethod
     def add_silent_labels(intervals):
         label_list = []
@@ -490,7 +486,6 @@ class LectureAudio:
 
         return np.array(label_list)
 
-    # TEST
     def full_analysis(self, threshold_all, threshold_lecture, hop_length, frame_length, pause_length, min_time):
         """
         Analyzes the audio and returns helpful data
@@ -543,6 +538,20 @@ class LectureAudio:
         words_per_second = num_words / professor_talking
         words_per_minute = words_per_second * 60
 
+        all_labels_arr = []
+
+        for chunk in intervals:
+            if chunk[2] == 0:
+                label_name = "silence"
+            elif chunk[2] == 1:
+                label_name = "professor"
+            elif chunk[2] == 2:
+                label_name = "student"
+            else:
+                label_name = ""
+
+            all_labels_arr.append({"start": int(chunk[0]) / self.sr, "end": int(chunk[1]) / self.sr, "label": label_name})
+
         response = {"percent_leading_trailing_silence_trimmed": percent_trimmed,
                     "student_talking_time": student_talking,
                     "professor_talking_time": professor_talking,
@@ -553,13 +562,11 @@ class LectureAudio:
                     "grade_level": grade_level,
                     "words_per_minute": words_per_minute,
                     "words_per_second": words_per_second,
-                    "all_labels": [
-                        # FIX MEEEEE! do this dynamically
-                        {"start": 0.09287981859410431, "end": 0.3250793650793651, "label": "student"},
-                        {"start": 0.3250793650793651, "end": 4.4117913832199545, "label": "professor"},
-                        {"start": 200.38820861678005, "end": 214.1907029478458, "label": "professor"}
-                    ]
+                    "all_labels": all_labels_arr
                     }
+
+        # for chunk in response["all_labels"]:
+        #     print(chunk)
 
         # convert into JSON:
         response = json.dumps(response)
