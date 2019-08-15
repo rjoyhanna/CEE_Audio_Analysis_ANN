@@ -108,10 +108,29 @@ class LectureAudio:
         # outputs time intervals for start and end of each speech chunk (includes students)
         intervals_all = self.split_on_silence(threshold=35, hop_length=hop_length, frame_length=frame_length)
 
-        mean = np.mean(intervals_all)  # FIX MEEEE must find the mean of the data, not the interval start/end
-        max = np.amax(intervals_all)
-        min = np.amin(intervals_all)
-        std = np.std(intervals_all)
+        overall_mean = [1, 0]
+        overall_max = 0
+        overall_min = math.inf
+        overall_std = 0
+        for chunk in intervals_all:
+            # should intervals be converted to seconds instead of samples?
+            length = chunk[1] - chunk[0]
+            audio_chunk = self.trimmed_audio[int(chunk[0]):int(chunk[1])]
+            mean = np.mean(audio_chunk)  # FIX MEEEE must find the mean of the data, not the interval start/end
+            max = np.amax(audio_chunk)
+            min = np.amin(audio_chunk)
+            std = np.std(audio_chunk)
+
+            if max > overall_max:
+                overall_max = max
+
+            if min < overall_min:
+                overall_min = min
+
+            print('mean: {}\tmax: {}\tmin: {}\tstd: {}'.format(mean, max, min, std))
+
+        print("OVERALL:")
+        print('mean: {}\tmax: {}\tmin: {}\tstd: {}'.format(overall_mean, overall_max, overall_min, overall_std))
 
         threshold_all = 35
         threshold_lecture = 30
@@ -130,8 +149,6 @@ class LectureAudio:
 
         _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(39, 30, hop_length, frame_length, 2, 1)
         self.create_labels(intervals, 6)
-
-        print('mean: {}\tmax: {}\tmin: {}\tstd: {}'.format(mean, max, min, std))
 
         return threshold_all, threshold_lecture
 
