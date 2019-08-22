@@ -581,7 +581,7 @@ class LectureAudio:
             else:
                 label_name = ""
 
-            all_labels_arr.append({"start": int(chunk[0]) / self.sr, "end": int(chunk[1]) / self.sr, "label": label_name})
+            all_labels_arr.append({"start": (int(chunk[0]) + self.trimmed_offset)/ self.sr, "end": (int(chunk[1]) + self.trimmed_offset) / self.sr, "label": label_name})
 
         response = {"percent_leading_trailing_silence_trimmed": percent_trimmed,
                     "student_talking_time": student_talking,
@@ -600,6 +600,9 @@ class LectureAudio:
         #     print(chunk)
 
         # convert into JSON:
+        with open('json.txt', 'w') as outfile:
+            json.dump(response, outfile)
+
         response = json.dumps(response)
 
         return percent_trimmed, student_talking, professor_talking, silence, new_dur, num_words, num_syllables, grade_level, words_per_minute, words_per_second, intervals
@@ -671,20 +674,20 @@ if __name__ == '__main__':
     # extract audio info from wav file and trim leading and trailing silence
     lecture = LectureAudio(audio_file, transcript_file, download_needed=False)
 
-    lecture.get_silence_threshold()
+    # lecture.get_silence_threshold()
 
     # # create an instance of the LectureAudio class
     # # only load first 1200 seconds to make tests run faster
     # lecture = LectureAudio(audio_file, duration=1200)
 
-    # threshold_all = 35
-    # threshold_lecture = 30
-    # hop_length = 1024
-    # frame_length = 2048
-    # pause_length = 2
-    # min_time = 1
-    #
-    # lecture.full_analysis(threshold_all, threshold_lecture, hop_length, frame_length, pause_length, min_time)
+    threshold_all = 35
+    threshold_lecture = 30
+    hop_length = 1024
+    frame_length = 2048
+    pause_length = 2
+    min_time = 1
+
+    lecture.full_analysis(threshold_all, threshold_lecture, hop_length, frame_length, pause_length, min_time)
 
 
 # THINGS TO BE AWARE OF
