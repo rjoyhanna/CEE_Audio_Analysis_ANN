@@ -6,7 +6,7 @@ We began with the following goals:
 - Determine amount of **interactive learning** in audio file
 - Determine whether a question has been asked by the professor
 
-The project was broken into two approaches; one using **machine learning** and the other using a **heuristic** approach. 
+The project was broken into two approaches; one using **machine learning** and the other using a **heuristic** approach.
 
 Using the `librosa` Python module, we split the audio into silence and lecturing. This works for high quality audio with very little ambient sound, such as from **UC Davis lecture capture**. This provides a rough idea of how many minutes were spent with the professor lecturing. In the future we could also explore number of words and/or questions asked.
 
@@ -91,13 +91,10 @@ If the file is really long and you want to speed up testing, select only a limit
 lecture_first_5_seconds = LectureAudio(audio_file, transcript_file, duration=5)
 ```
 
-Once the LectureAudio object is initialized you can produce sample label files for different silence trimming parameters. You can compare the accuracy in [Audacity](https://www.audacityteam.org/) and then run final_split() with the most accurate parameters.
+Once the LectureAudio object is initialized you can produce sample label files for different silence trimming thresholds. You can compare the accuracy in [Audacity](https://www.audacityteam.org/) and then run final_split() with the most accurate threshold(s).
 ```python
 # run and analyze this test if unsure what params will work best for final split
-frame_lengths = [1024, 2048, 4096]
-hop_lengths = [1024, 2048]
-thresholds = [30, 35]
-lecture.test_splits(frame_lengths, hop_lengths, thresholds)
+lecture.get_silence_threshold()
 ```
 
 Now that you found the best parameters, run all available tests using the `full_analysis()` method:
