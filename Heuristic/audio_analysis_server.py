@@ -1,7 +1,7 @@
 import http.server
 import json
 
-with open('json.txt') as json_file:
+with open('BIS-2A__2019-07-17_12_10.json') as json_file:
     response = json.load(json_file)
 
 response = json.dumps(response)

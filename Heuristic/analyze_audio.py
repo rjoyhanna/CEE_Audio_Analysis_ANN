@@ -133,9 +133,6 @@ class LectureAudio:
         print("OVERALL:")
         print('mean: {}\tmax: {}\tmin: {}\tstd: {}'.format(overall_mean, overall_max, overall_min, overall_std))
 
-        threshold_all = 35
-        threshold_lecture = 30
-
         _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(35, 30, hop_length, frame_length, 2, 1)
         self.create_labels(intervals, 2)
 
@@ -150,8 +147,6 @@ class LectureAudio:
 
         _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(39, 30, hop_length, frame_length, 2, 1)
         self.create_labels(intervals, 6)
-
-        return threshold_all, threshold_lecture
 
     def split_on_silence(self, threshold, hop_length, frame_length):
         """
@@ -677,20 +672,20 @@ if __name__ == '__main__':
     # extract audio info from wav file and trim leading and trailing silence
     lecture = LectureAudio(audio_file, transcript_file, download_needed=False)
 
-    # lecture.get_silence_threshold()
+    lecture.get_silence_threshold()
 
     # # create an instance of the LectureAudio class
     # # only load first 1200 seconds to make tests run faster
     # lecture = LectureAudio(audio_file, duration=1200)
 
-    threshold_all = 35
-    threshold_lecture = 30
-    hop_length = 1024
-    frame_length = 2048
-    pause_length = 2
-    min_time = 1
-
-    lecture.full_analysis(threshold_all, threshold_lecture, hop_length, frame_length, pause_length, min_time)
+    # threshold_all = 35
+    # threshold_lecture = 30
+    # hop_length = 1024
+    # frame_length = 2048
+    # pause_length = 2
+    # min_time = 1
+    #
+    # lecture.full_analysis(threshold_all, threshold_lecture, hop_length, frame_length, pause_length, min_time)
 
 
 # THINGS TO BE AWARE OF
