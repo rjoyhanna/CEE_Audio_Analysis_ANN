@@ -2,6 +2,7 @@ import librosa
 import numpy as np
 import json
 import math
+import sys
 from textstat import lexicon_count, syllable_count, dale_chall_readability_score
 __all__ = [lexicon_count, syllable_count, dale_chall_readability_score]
 
@@ -665,10 +666,12 @@ class LectureAudio:
 
 
 if __name__ == '__main__':
+    transcript_file = sys.argv[1]
+    audio_file = sys.argv[2]
 
     # select the base filename to be analyzed
-    transcript_file = 'BIS-2A_ 2019-07-17 12_10_transcript.txt'
-    audio_file = 'BIS-2A__2019-07-17_12_10.mp4'
+    # transcript_file = 'BIS-2A_ 2019-07-17 12_10_transcript.txt'
+    # audio_file = 'BIS-2A__2019-07-17_12_10.mp4'
 
     # create an instance of the LectureAudio class
     # extract audio info from wav file and trim leading and trailing silence
