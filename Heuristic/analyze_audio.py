@@ -78,8 +78,6 @@ class LectureAudio:
         if download_needed:
             self.file_handler.upload_file(self.trimmed_filename)
 
-        # self.silence_threshold = self.get_silence_threshold()
-
     def trim_ends(self, verbose=False):
         """
         Trims the silence off of the beginning and end of the audio
@@ -109,10 +107,11 @@ class LectureAudio:
         # outputs time intervals for start and end of each speech chunk (includes students)
         intervals_all = self.split_on_silence(threshold=35, hop_length=hop_length, frame_length=frame_length)
 
-        overall_mean = [1, 0]
+        overall_mean = 0  # this will ignore all silence gaps
+        num_samples_seen = 0
         overall_max = 0
         overall_min = math.inf
-        overall_std = 0
+        # overall_std = 0
         for chunk in intervals_all:
             # should intervals be converted to seconds instead of samples?
             length = chunk[1] - chunk[0]
@@ -120,7 +119,7 @@ class LectureAudio:
             mean = np.mean(audio_chunk)  # FIX MEEEE must find the mean of the data, not the interval start/end
             max = np.amax(audio_chunk)
             min = np.amin(audio_chunk)
-            std = np.std(audio_chunk)
+            # std = np.std(audio_chunk)
 
             if max > overall_max:
                 overall_max = max
@@ -128,24 +127,33 @@ class LectureAudio:
             if min < overall_min:
                 overall_min = min
 
-            print('mean: {}\tmax: {}\tmin: {}\tstd: {}'.format(mean, max, min, std))
+            if num_samples_seen == 0:
+                overall_mean = mean
+                num_samples_seen = length
+                # print(overall_mean)
+                # print(num_samples_seen)
+            else:
+                overall_mean = ((overall_mean * num_samples_seen) + (mean * length)) / (num_samples_seen + length)
+                # print(overall_mean)
+                num_samples_seen += length
+                # print(num_samples_seen)
 
-        print("OVERALL:")
-        print('mean: {}\tmax: {}\tmin: {}\tstd: {}'.format(overall_mean, overall_max, overall_min, overall_std))
+        print("\nOVERALL:")
+        print('mean: {}\tmax: {}\tmin: {}'.format(overall_mean, overall_max, overall_min))
 
-        _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(35, 30, hop_length, frame_length, 2, 1)
+        _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(30, 30, hop_length, frame_length, 1, 2)
         self.create_labels(intervals, 2)
 
         _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(31, 30, hop_length, frame_length, 2, 1)
         self.create_labels(intervals, 3)
 
-        _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(33, 30, hop_length, frame_length, 2, 1)
+        _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(32, 30, hop_length, frame_length, 2, 1)
         self.create_labels(intervals, 4)
 
-        _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(37, 30, hop_length, frame_length, 2, 1)
+        _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(33, 30, hop_length, frame_length, 2, 1)
         self.create_labels(intervals, 5)
 
-        _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(39, 30, hop_length, frame_length, 2, 1)
+        _, _, _, _, _, _, _, _, _, _, intervals = self.full_analysis(34, 30, hop_length, frame_length, 2, 1)
         self.create_labels(intervals, 6)
 
     def split_on_silence(self, threshold, hop_length, frame_length):
@@ -596,7 +604,7 @@ class LectureAudio:
         #     print(chunk)
 
         # convert into JSON:
-        with open('json.txt', 'w') as outfile:
+        with open('{}.json'.format(remove_file_type(self.wav_filename)), 'w') as outfile:
             json.dump(response, outfile)
 
         response = json.dumps(response)
@@ -672,20 +680,20 @@ if __name__ == '__main__':
     # extract audio info from wav file and trim leading and trailing silence
     lecture = LectureAudio(audio_file, transcript_file, download_needed=False)
 
-    lecture.get_silence_threshold()
+    # lecture.get_silence_threshold()
 
     # # create an instance of the LectureAudio class
     # # only load first 1200 seconds to make tests run faster
     # lecture = LectureAudio(audio_file, duration=1200)
 
-    # threshold_all = 35
-    # threshold_lecture = 30
-    # hop_length = 1024
-    # frame_length = 2048
-    # pause_length = 2
-    # min_time = 1
-    #
-    # lecture.full_analysis(threshold_all, threshold_lecture, hop_length, frame_length, pause_length, min_time)
+    threshold_all = 33
+    threshold_lecture = 30
+    hop_length = 1024
+    frame_length = 2048
+    pause_length = 2
+    min_time = 1
+
+    lecture.full_analysis(threshold_all, threshold_lecture, hop_length, frame_length, pause_length, min_time)
 
 
 # THINGS TO BE AWARE OF
