@@ -3,6 +3,7 @@ import numpy as np
 import json
 import math
 import sys
+import collections
 from textstat import lexicon_count, syllable_count, dale_chall_readability_score
 __all__ = [lexicon_count, syllable_count, dale_chall_readability_score]
 
@@ -275,6 +276,11 @@ class LectureAudio:
 
         num_words = lexicon_count(data, removepunct=True)
         num_syllables = syllable_count(data, lang='en_US')
+
+        word_list = data.split()
+        Counter = collections.Counter(word_list)
+        most_common = Counter.most_common(10)
+        print(most_common)
 
         grade_level = dale_chall_readability_score(data)
 
@@ -691,7 +697,7 @@ if __name__ == '__main__':
     hop_length = 1024
     frame_length = 2048
     pause_length = 2
-    min_time = 1
+    min_time = 2
 
     lecture.full_analysis(threshold_all, threshold_lecture, hop_length, frame_length, pause_length, min_time)
 
