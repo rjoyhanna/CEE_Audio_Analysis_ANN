@@ -4,6 +4,7 @@ import json
 import math
 import sys
 import collections
+import string
 from textstat import lexicon_count, syllable_count, dale_chall_readability_score
 __all__ = [lexicon_count, syllable_count, dale_chall_readability_score]
 
@@ -277,10 +278,46 @@ class LectureAudio:
         num_words = lexicon_count(data, removepunct=True)
         num_syllables = syllable_count(data, lang='en_US')
 
-        word_list = data.split()
-        Counter = collections.Counter(word_list)
+        punctuation = string.punctuation.replace("'", "")
+        lower = data.lower()
+        lower = lower.replace("all right", "alright")
+        lower = lower.replace("you see", "you_see")
+        lower = lower.replace("you know", "you_know")
+        lower = lower.replace("i mean", "i_mean")
+        lower = lower.replace("or something", "or_something")
+        lower = lower.replace("thank you", "thank_you")
+        no_punctuation = ''.join(char for char in lower if char not in punctuation)
+        no_punctuation = no_punctuation.replace("and and", "and_and")
+        words = no_punctuation.split()
+
+        # get a distribution of the most common words used, ignoring filler words
+        ignore = {'the', 'a', 'if', 'in', 'it', 'of', 'or', 'and', 'to', 'that', 'this', 'so', 'is', 'some', 'on', 'these', 'those', 'one', 'can', 'are', 'they', 'like', '2', 'two', 'for', 'have', 'from', 'with'}
+        Counter = collections.Counter(word for word in words if word not in ignore)
         most_common = Counter.most_common(10)
         print(most_common)
+
+        # get distribution of most used filler words
+        fillers = {'um', 'uh', 'ah', 'like', 'okay', 'ok', 'alright', 'and_and', 'really', 'well', 'you_see', 'you_know', 'i_mean', 'so', 'or_something', 'right'}
+        Counter_fillers = collections.Counter(word for word in words if word in fillers)
+        common_fillers = Counter_fillers.most_common(5)
+        print(common_fillers)
+
+        # get distribution of most used positive words
+        positives = {'good', 'happy', 'thank_you'}
+        Counter_positives = collections.Counter(word for word in words if word in positives)
+        common_positives = Counter_positives.most_common(5)
+        print(common_positives)
+
+        # get a distribution of the letters per word
+        word_length_dist = [0] * 20
+
+        for word in words:
+            length = len(word)
+            word_length_dist[length] = word_length_dist[length] + 1
+            # if length > 12:
+                # print(word)
+
+        print(word_length_dist)
 
         grade_level = dale_chall_readability_score(data)
 
