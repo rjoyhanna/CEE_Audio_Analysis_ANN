@@ -277,11 +277,22 @@ class LectureAudio:
 
         num_words = lexicon_count(data, removepunct=True)
         num_syllables = syllable_count(data, lang='en_US')
+        print(num_syllables)
 
-        # no_punctuation = ''.join(char for char in lower if char not in punctuation)
+        difficult_words = []
+
+        lower = data.lower()
+        no_punctuation = ''.join(char for char in lower if char not in string.punctuation)
+        words = no_punctuation.split()
+        syllable_dist = [0] * 10
+        for word in words:
+            num_syllables = syllable_count(word, lang='en_US')
+            syllable_dist[num_syllables] = syllable_dist[num_syllables] + 1
+            if num_syllables > 4:
+                difficult_words.append(word)
+        print(syllable_dist)
 
         punctuation = string.punctuation.replace("'", "")
-        lower = data.lower()
         lower = lower.replace("all right", "alright")
         lower = lower.replace("you see", "you_see")
         lower = lower.replace("you know", "you_know")
@@ -293,33 +304,41 @@ class LectureAudio:
         words = no_punctuation.split()
 
         # get a distribution of the most common words used, ignoring filler words
-        ignore = {'the', 'a', 'if', 'in', 'it', 'of', 'or', 'and', 'to', 'that', 'this', 'so', 'is', 'some', 'on', 'these', 'those', 'one', 'can', 'are', 'they', 'like', '2', 'two', 'for', 'have', 'from', 'with'}
+        ignore = {'the', 'a', 'if', 'in', 'it', 'of', 'or', 'and', 'to', 'that', 'this', 'so', 'is', 'some', 'on', 'these', 'those', 'one', 'can', 'are', 'they', 'like', '2', 'two', 'for', 'have', 'from', 'with', 'it\'s', 'that\'s'}
         Counter = collections.Counter(word for word in words if word not in ignore)
-        most_common = Counter.most_common(10)
+        most_common = Counter.most_common(20)
         # print(most_common)
 
         # get distribution of most used filler words
         fillers = {'um', 'uh', 'ah', 'like', 'okay', 'ok', 'alright', 'and_and', 'really', 'well', 'you_see', 'you_know', 'i_mean', 'so', 'or_something', 'right'}
         Counter_fillers = collections.Counter(word for word in words if word in fillers)
-        common_fillers = Counter_fillers.most_common(5)
+        common_fillers = Counter_fillers.most_common(20)
         # print(common_fillers)
 
         # get distribution of most used positive words
         positives = {'good', 'happy', 'thank_you'}
         Counter_positives = collections.Counter(word for word in words if word in positives)
-        common_positives = Counter_positives.most_common(5)
+        common_positives = Counter_positives.most_common(20)
         # print(common_positives)
 
         # get a distribution of the letters per word
         word_length_dist = [0] * 30
+        other_difficult_words = []
 
         for word in words:
             length = len(word)
             word_length_dist[length] = word_length_dist[length] + 1
-            # if length > 12:
-                # print(word)
+            if length > 12:
+                other_difficult_words.append(word)
 
-        # print(word_length_dist)
+        final_difficult_words = other_difficult_words.copy()
+        for word in other_difficult_words:
+            if word not in difficult_words:
+                final_difficult_words.append(word)
+
+        Counter_difficult = collections.Counter(final_difficult_words)
+        most_difficult = Counter_difficult.most_common(20)
+        print(most_difficult)
 
         grade_level = dale_chall_readability_score(data)
 
@@ -338,7 +357,7 @@ class LectureAudio:
         else:
             grade_level_string = 'above average college student'
 
-        return num_words, num_syllables / num_words, grade_level_string, most_common, common_fillers, common_positives, word_length_dist
+        return num_words, num_syllables / num_words, grade_level_string, most_common, common_fillers, common_positives, word_length_dist, syllable_dist, most_difficult
 
     def integrate_interval_sets(self, professor_intervals, all_intervals=None):
         if all_intervals is None:
@@ -613,7 +632,7 @@ class LectureAudio:
         # find the percent silence removed and percent of lecture spent talking
         percent_trimmed, professor_talking, student_talking, silence, new_dur = lecture.count_time_spent(intervals)
 
-        num_words, num_syllables, grade_level, most_common, common_fillers, common_positives, word_length_dist = lecture.analyze_words()
+        num_words, num_syllables, grade_level, most_common, common_fillers, common_positives, word_length_dist, syllable_dist, most_difficult = lecture.analyze_words()
 
         words_per_second = num_words / professor_talking
         words_per_minute = words_per_second * 60
@@ -644,6 +663,10 @@ class LectureAudio:
         for word in common_positives:
             common_positives_arr.append({"word": word[0], "number": word[1]})
 
+        most_difficult_arr = []
+        for word in most_difficult:
+            most_difficult_arr.append({"word": word[0], "number": word[1]})
+
         response = {"percent_leading_trailing_silence_trimmed": percent_trimmed,
                     "student_talking_time": student_talking,
                     "professor_talking_time": professor_talking,
@@ -657,7 +680,9 @@ class LectureAudio:
                     "most_common_words": most_common_arr,
                     "common_fillers": common_fillers_arr,
                     "common_positives": common_positives_arr,
+                    "most_difficult": most_difficult_arr,
                     "word_lengths": word_length_dist,
+                    "syllable_lengths": syllable_dist,
                     "all_labels": all_labels_arr
                     }
 
