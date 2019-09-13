@@ -1,10 +1,19 @@
 import http.server
 import json
 
-with open('BIS-2A__2019-07-17_12_10.json') as json_file:
-    response = json.load(json_file)
+files = ['BIS-2A__2019-07-08_12_10', 'BIS-2A__2019-07-10_12_10', 'BIS-2A__2019-07-12_12_10', 'BIS-2A__2019-07-17_15_10', 'BIS-2A__2019-07-17_12_10']
 
-response = json.dumps(response)
+i = 0
+full_response = {}
+
+for file in files:
+    with open('{}.json'.format(files)) as json_file:
+        response = json.load(json_file)
+
+    response = json.dumps(response)
+    full_response[file] = response
+
+print(full_response)  # newwww
 
 
 class SimpleHTTPRequestHandler(http.server.BaseHTTPRequestHandler):

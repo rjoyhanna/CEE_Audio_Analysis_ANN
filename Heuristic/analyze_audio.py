@@ -276,8 +276,7 @@ class LectureAudio:
             data = myfile.read()
 
         num_words = lexicon_count(data, removepunct=True)
-        num_syllables = syllable_count(data, lang='en_US')
-        print(num_syllables)
+        total_num_syllables = syllable_count(data, lang='en_US')
 
         difficult_words = []
 
@@ -357,7 +356,7 @@ class LectureAudio:
         else:
             grade_level_string = 'above average college student'
 
-        return num_words, num_syllables / num_words, grade_level_string, most_common, common_fillers, common_positives, word_length_dist, syllable_dist, most_difficult
+        return num_words, total_num_syllables / num_words, grade_level_string, most_common, common_fillers, common_positives, word_length_dist, syllable_dist, most_difficult
 
     def integrate_interval_sets(self, professor_intervals, all_intervals=None):
         if all_intervals is None:
@@ -764,7 +763,7 @@ if __name__ == '__main__':
 
     # create an instance of the LectureAudio class
     # extract audio info from wav file and trim leading and trailing silence
-    lecture = LectureAudio(audio_file, transcript_file, download_needed=False)
+    lecture = LectureAudio(audio_file, transcript_file)
 
     # lecture.get_silence_threshold()
 
@@ -772,7 +771,7 @@ if __name__ == '__main__':
     # # only load first 1200 seconds to make tests run faster
     # lecture = LectureAudio(audio_file, duration=1200)
 
-    threshold_all = 33
+    threshold_all = 30  # should be >= threshold_lecture
     threshold_lecture = 30
     hop_length = 1024
     frame_length = 2048

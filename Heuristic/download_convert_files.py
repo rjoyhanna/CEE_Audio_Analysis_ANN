@@ -42,7 +42,7 @@ class DownloadConvertFiles:
 
         self.video_convert_command = 'ffmpeg -i s3/{} s3/{}'.format(self.audio_filename, self.wav_filename)
 
-        self.download_files()
+        # self.download_files()
         self.convert_file()
 
         self.s3 = boto3.resource('s3')
