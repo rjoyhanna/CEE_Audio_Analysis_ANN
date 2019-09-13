@@ -72,6 +72,12 @@ data.pickle_data()
 
 ## Getting Started with Heuristic analysis
 
+For quick use of `analyze_audio.py` just type the following into the command line:
+```console
+analyze_audio.py MY_FILENAME.txt MY_FILENAME.wav
+```
+Transcript files must be a text file. Audio/video files can be in `.mp3`, `.mp4`, or `.wav` format.
+
 All audio files must be in `.wav` format since this module uses `librosa`. All transcript files must be in `.txt` format and include accurate words, punctuation, and a timestamp of when speaking begins. The easiest way to get the correct format is to take the transcription directly from Aggie Video. To load a file, use a string without the file extension. So if your file was named `input_audio.wav`, load it as shown:
 
 ```python
